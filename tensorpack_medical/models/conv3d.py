@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# File: expreplay.py
+# Author: Yuxin Wu <ppwwyyxxc@gmail.com>
+# Modified: Amir Alansary <amiralansary@gmail.com>
 
 import tensorflow as tf
 from tensorpack.common import layer_register, VariableHolder

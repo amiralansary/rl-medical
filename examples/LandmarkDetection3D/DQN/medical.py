@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# File: DQNModel.py
+# Author: Amir Alansary <amiralansary@gmail.com>
+
 import os
 import six
 import random

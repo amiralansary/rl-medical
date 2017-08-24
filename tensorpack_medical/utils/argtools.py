@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: argtools.py
-
+# File: expreplay.py
+# Author: Yuxin Wu <ppwwyyxxc@gmail.com>
+# Modified: Amir Alansary <amiralansary@gmail.com>
 
 import inspect
 import six
