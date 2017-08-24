@@ -21,14 +21,15 @@ import tensorflow as tf
 
 from medical import MedicalPlayer
 
-
-from tensorpack.RL import (MapPlayerState, PreventStuckPlayer, LimitLengthPlayer)
-from ...tensorpack_medical.RL.history import
+from tensorpack import (PredictConfig, get_model_loader)
+from tensorpack.RL import (MapPlayerState, PreventStuckPlayer,
+                           LimitLengthPlayer)
 
 from common import play_model, Evaluator, eval_model_multithread
 from DQNModel import Model3D as DQNModel
 from expreplay import ExpReplay
 
+from ...tensorpack_medical.RL.history import HistoryFramePlayer
 
 ###############################################################################
 
@@ -138,3 +139,48 @@ def get_config():
         steps_per_epoch=STEPS_PER_EPOCH,
         max_epoch=1000,
     )
+
+
+
+###############################################################################
+###############################################################################
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.')
+    parser.add_argument('--load', help='load model')
+    parser.add_argument('--task', help='task to perform',
+                        choices=['play', 'eval', 'train'], default='train')
+    # parser.add_argument('--rom', help='atari rom', required=True)
+    parser.add_argument('--algo', help='algorithm',
+                        choices=['DQN', 'Double', 'Dueling'], default='Double')
+    args = parser.parse_args()
+
+    if args.gpu:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    # ROM_FILE = args.rom
+    METHOD = args.algo
+    # set num_actions
+    # NUM_ACTIONS = MedicalPlayer(ROM_FILE).get_action_space().num_actions()
+    # logger.info("ROM: {}, Num Actions: {}".format(ROM_FILE, NUM_ACTIONS))
+
+    if args.task != 'train':
+        assert args.load is not None
+        cfg = PredictConfig(
+            model=Model(),
+            session_init=get_model_loader(args.load),
+            input_names=['state'],
+            output_names=['Qvalue'])
+        if args.task == 'play':
+            play_model(cfg, get_player(viz=0.01))
+        elif args.task == 'eval':
+            eval_model_multithread(cfg, EVAL_EPISODE, get_player)
+    else:
+        logger.set_logger_dir(
+            os.path.join('train_log', 'DQN-{}'.format(
+                os.path.basename(ROM_FILE).split('.')[0])))
+        config = get_config()
+        if args.load:
+            config.session_init = get_model_loader(args.load)
+        QueueInputTrainer(config).train()
