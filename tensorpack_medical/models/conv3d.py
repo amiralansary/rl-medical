@@ -5,13 +5,11 @@
 # Modified: Amir Alansary <amiralansary@gmail.com>
 
 import tensorflow as tf
-from tensorpack.common import layer_register, VariableHolder
-from ..utils.argtools import shape3d, shape5d
-from tensorpack.shape_utils import StaticDynamicAxis
+from tensorpack_medical.utils.argtools import shape3d, shape5d
 
-from tensorpack import (layer_register, VariableHolder, shape2d, shape4d, StaticDynamicAxis)
+from tensorpack import (layer_register, VariableHolder, StaticDynamicAxis)
 
-__all__ = ['Conv2D', 'Deconv2D']
+__all__ = ['Conv3D', 'Deconv3D']
 
 
 @layer_register(log_shape=True)
@@ -82,7 +80,8 @@ def Conv3D(x, out_channel, kernel_shape,
                    for i, k in zip(inputs, kernels)]
         conv = tf.concat(outputs, channel_axis)
 
-    ret = nl(tf.nn.bias_add(conv, b, data_format=data_format) if use_bias else conv, name='output')
+    # todo: check data format in bias_add
+    ret = nl(tf.nn.bias_add(conv, b, data_format='NHWC') if use_bias else conv, name='output')
     ret.variables = VariableHolder(W=W)
     if use_bias:
         ret.variables.b = b
@@ -163,7 +162,7 @@ def Deconv3D(x, out_shape, kernel_shape,
     conv = tf.nn.conv3d_transpose(
         x, W, out_shape_dyn, stride5d, padding=padding, data_format=data_format)
     conv.set_shape(tf.TensorShape([None] + shp3_static))
-    ret = nl(tf.nn.bias_add(conv, b, data_format=data_format) if use_bias else conv, name='output')
+    ret = nl(tf.nn.bias_add(conv, b, data_format='NHWC') if use_bias else conv, name='output')
 
     ret.variables = VariableHolder(W=W)
     if use_bias:

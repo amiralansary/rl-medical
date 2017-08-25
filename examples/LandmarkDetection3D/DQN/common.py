@@ -14,8 +14,9 @@ from six.moves import queue
 
 # from tensorpack import *
 # from tensorpack.utils.stats import *
-from tensorpack import (OfflinePredictor)
+from tensorpack import (OfflinePredictor, Triggerable)
 
+from tensorpack.utils.stats import StatCounter
 from tensorpack.utils.utils import get_tqdm_kwargs
 from tensorpack.utils.concurrency import (StoppableThread, ShareSessionThread)
 

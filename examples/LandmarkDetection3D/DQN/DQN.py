@@ -21,20 +21,26 @@ import tensorflow as tf
 
 from medical import MedicalPlayer
 
-from tensorpack import (PredictConfig, get_model_loader)
-from tensorpack.RL import (MapPlayerState, PreventStuckPlayer,
+from tensorpack import (PredictConfig, get_model_loader, logger, TrainConfig,
+                        ModelSaver, PeriodicTrigger, ScheduledHyperParamSetter,
+                        ObjAttrParam, HumanHyperParamSetter, QueueInputTrainer,
+                        argscope, RunOp, LinearWrap, FullyConnected, LeakyReLU,
+                        PReLU)
+
+from tensorpack_medical.RL.common import (MapPlayerState, PreventStuckPlayer,
                            LimitLengthPlayer)
 
 from common import play_model, Evaluator, eval_model_multithread
 from DQNModel import Model3D as DQNModel
 from expreplay import ExpReplay
 
-from ...tensorpack_medical.RL.history import HistoryFramePlayer
+from tensorpack_medical.RL.history import HistoryFramePlayer
+from tensorpack_medical.models.conv3d import Conv3D
 
 ###############################################################################
 
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS UNKNOWN
-BATCH_SIZE = 64
+BATCH_SIZE = 32 #64
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
 IMAGE_SIZE = (27, 27, 27)
 FRAME_HISTORY = 4
@@ -57,10 +63,12 @@ NUM_ACTIONS = None
 # dqn method - double or dual (default: double)
 METHOD = None
 
+TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/'
+
 ###############################################################################
 
 def get_player(viz=False, train=False):
-    pl = MedicalPlayer(train_directory='/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/',screen_dims=IMAGE_SIZE)
+    pl = MedicalPlayer(train_directory=TRAIN_DIR,screen_dims=IMAGE_SIZE)
 
     if not train:
         # create a new axis to stack history on
@@ -162,6 +170,7 @@ if __name__ == '__main__':
     # ROM_FILE = args.rom
     METHOD = args.algo
     # set num_actions
+    NUM_ACTIONS = MedicalPlayer(train_directory=TRAIN_DIR,screen_dims=IMAGE_SIZE).get_action_space().num_actions()
     # NUM_ACTIONS = MedicalPlayer(ROM_FILE).get_action_space().num_actions()
     # logger.info("ROM: {}, Num Actions: {}".format(ROM_FILE, NUM_ACTIONS))
 
@@ -177,9 +186,12 @@ if __name__ == '__main__':
         elif args.task == 'eval':
             eval_model_multithread(cfg, EVAL_EPISODE, get_player)
     else:
-        logger.set_logger_dir(
-            os.path.join('train_log', 'DQN-{}'.format(
-                os.path.basename(ROM_FILE).split('.')[0])))
+        # todo: variable log dir
+        logger.set_logger_dir( 'train_log/DQN'
+            # os.path.join('train_log', 'DQN-{}'.format(
+            #     os.path.basename(ROM_FILE).split('.')[0]))
+            )
+
         config = get_config()
         if args.load:
             config.session_init = get_model_loader(args.load)

@@ -6,17 +6,20 @@
 import os
 import six
 import random
-import collections
+import threading
 import numpy as np
 from tensorpack import logger
+from collections import (Counter, defaultdict)
 
 
 
 from gym import spaces
 
 
-from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
+from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
+from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
+
 
 
 
@@ -37,7 +40,7 @@ class MedicalPlayer(RLEnvironment):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, train_directory=None, viz=0, screen_dims=None, nullop_start=30,location_history_length=10):
+    def __init__(self, train_directory=None, viz=0, screen_dims=(27,27,27), nullop_start=30,location_history_length=10):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -45,7 +48,7 @@ class MedicalPlayer(RLEnvironment):
             set to +ve number to be the delay between frames to show
             set to a string to be the directory for storing frames
         :param screen_dims: shape of the frame cropped from the image to feed
-            it to dqn (d,w,h)
+            it to dqn (d,w,h) - defaults (27,27,27)
         :param nullop_start: start with random number of null ops
         :param location_history_length: consider lost of lives as end of
             episode (useful for training)
@@ -61,9 +64,12 @@ class MedicalPlayer(RLEnvironment):
         self._loc_history = list([(0,0,0)]) * self._loc_history_length
 
         self.screen_dims = screen_dims
+        self.nullop_start = nullop_start
 
-        self.num_games = 0
-        self.num_success = 0
+        self.num_games = StatCounter()
+        self.num_success = StatCounter()
+        self.current_episode_score = StatCounter()
+        self.actions = self.getMinimalActionSet()
 
         with _ALE_LOCK:
             self.rng = get_rng(self)
@@ -83,14 +89,13 @@ class MedicalPlayer(RLEnvironment):
                 # cv2.startWindowThread()
                 # cv2.namedWindow(self.windowname)
             self.train_files = trainFiles(train_directory)
-
-
         self.restart_episode()
 
     def restart_episode(self):
         # reset the stat counter
         self.current_episode_score.reset()
         self.reset_stat()
+
         with _ALE_LOCK:
             self.reset_game()
         # random null-ops start by performing random number of dummy actions at the beginning of each episode
@@ -99,9 +104,7 @@ class MedicalPlayer(RLEnvironment):
         for k in range(n):
             if k == n-1:
                 self.last_raw_screen = self.get_screen()
-            # self.env.step(0)
-            self.act(0)
-        self.count = 0
+            self.action(0)
 
     def reset_game(self):
         """
@@ -114,15 +117,12 @@ class MedicalPlayer(RLEnvironment):
 
     def new_random_game(self):
         # print('\n============== new game ===============\n')
-        self.num_games += 1
+        self.num_games.feed(1)
         self.terminal = False
         self._loc_history = list([(0,0,0)]) * self._loc_history_length
-
         # sample a new image
         self._game_img, self._target_loc, file_idx = self.train_files.sample()
-
         self._game_dims = self._game_img.dims     # the image volume size
-
         self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._game_dims[0]-self.screen_dims[0]-1, self._game_dims[1]-self.screen_dims[1]-1, self._game_dims[2]-self.screen_dims[2]-1))
 
         x = random.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
@@ -137,9 +137,6 @@ class MedicalPlayer(RLEnvironment):
         # self.render()
         # return self._screen, 0, 0, self.terminal
 
-    def _random_step(self):
-        action = self.action_space.sample()
-        self._step(action)
 
     def action(self, act):
         """The environment's step function returns exactly what we need.
@@ -158,6 +155,8 @@ class MedicalPlayer(RLEnvironment):
         current_loc = self._location
         self.terminal = False
         go_out = False
+
+        act = self.actions[act]
 
         # UP Z+
         if (act==0):
@@ -219,15 +218,13 @@ class MedicalPlayer(RLEnvironment):
         # check if agent oscillates
         # self._add_loc(next_location)
         # if self._oscillate: done  = True
-        # # Clip rewards to [-1,1]
-        # reward = max(min(reward, 1), -1)
         # update screen, reward ,location, terminal
         self._location = next_location
         self._screen = self.get_screen()
         # self.terminal = (next_location==self._target_loc).any()
         if (np.array(self._location)==np.array(self._target_loc)).all():
             self.terminal = True
-            self.num_success += 1
+            self.num_success.feed(1)
             # logger.info('Target reached!! \n start location = {} - target_location = {} - reward = {} - terminal = {}'.format(self._start_location, self._target_loc, self.reward, self.terminal))
             # return (self.reward, self.terminal)
 
@@ -239,8 +236,9 @@ class MedicalPlayer(RLEnvironment):
         #         self.terminal = False
         #         logger.info('Stuck at current location = {} - target location = {} - reward = {} - terminal = {}'.format(self._location, self._target_loc, self.reward, self.terminal))
 
-        self.current_episode_score.feed(reward)
-        if isOver:
+        self.current_episode_score.feed(self.reward)
+        if self.terminal:
+            # logger.info('reward {}, terminal {}, screen '.format(self.reward, self.terminal, self.get_screen()))
             self.finish_episode()
             self.restart_episode()
 
@@ -300,7 +298,7 @@ class MedicalPlayer(RLEnvironment):
     def _oscillate(self):
         ''' Return True if the agent is stuck and oscillating
         '''
-        counter = collections.Counter(self._loc_history)
+        counter = Counter(self._loc_history)
         freq = counter.most_common()
 
         if freq[0][0] == (0,0,0):
@@ -308,9 +306,7 @@ class MedicalPlayer(RLEnvironment):
         elif (freq[0][1]>3):
             return True
 
-
-    @property
-    def action_space(self):
+    def get_action_space(self):
         ''' return array of integers for actions
         ACTION_MEANING = {
             1 : "UP",       # MOVE Z+
@@ -321,11 +317,7 @@ class MedicalPlayer(RLEnvironment):
             6 : "DOWN",     # MOVE Z-
         }
         '''
-        return spaces.Discrete(6) # Set with 8 elements {0, 1, 2, ..., 7}
-
-    def get_action_space(self):
-        return self.action_space # Set with 8 elements {0, 1, 2, ..., 7}
-
+        return DiscreteActionSpace(len(self.actions))
 
     # @property
     def get_num_actions(self):
@@ -345,20 +337,6 @@ class MedicalPlayer(RLEnvironment):
         """
         return (self.width, self.height, self.depth)
 
-    @property
-    def get_num_games(self):
-        """
-        return screen number of games played
-        """
-        return self.num_games
-
-    @property
-    def get_num_successful_trials(self):
-        """
-        return screen number of successful trials played
-        """
-        return self.num_success
-
     def lives(self):
         return None
 
@@ -369,12 +347,10 @@ class MedicalPlayer(RLEnvironment):
     def reset_stat(self):
         """ Reset all statistics counter"""
         self.stats = defaultdict(list)
-        self.num_games = 0
-        self.num_success = 0
 
-
-
-
+    def finish_episode(self):
+        if self.current_episode_score.count:
+            self.stats['score'].append(self.current_episode_score.sum)
 
 
 # =============================================================================

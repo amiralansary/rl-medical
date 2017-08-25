@@ -267,11 +267,22 @@ class ExpReplay(DataFlow, Callback):
                 self.trainer.monitors.put_scalar('expreplay/max_' + k, max)
             except:
                 logger.exception("Cannot log training scores.")
+
         # monitor number of played games and successes of reaching the target
-        self.trainer.monitors.put_scalar('n_games',
-                                    self.player.get_num_games())
-        self.trainer.monitors.put_scalar('n_success',
-                                    self.player.get_num_successful_trials())
+        if self.player.num_games.count:
+            self.trainer.monitors.put_scalar('n_games',
+                                             self.player.num_games.sum)
+        else:
+            self.trainer.monitors.put_scalar('n_games', 0)
+
+        if self.player.num_success.count:
+            self.trainer.monitors.put_scalar('n_success',
+                                             self.player.num_success.sum)
+        else:
+            self.trainer.monitors.put_scalar('n_success', 0)
+        self.player.num_success.reset()
+        self.player.num_games.reset()
+
         # reset stats
         self.player.reset_stat()
 

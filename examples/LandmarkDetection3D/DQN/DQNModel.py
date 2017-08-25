@@ -179,7 +179,7 @@ class Model3D(ModelDesc):
         #                            target - pred_action_value), name='cost')
         self.cost = tf.clip_by_value(tf.reduce_mean(symbf.huber_loss(
                                     target - pred_action_value)),
-                                    -1, 1, , name='cost')
+                                    -1, 1, name='cost')
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))   # monitor all W
         summary.add_moving_summary(self.cost)
