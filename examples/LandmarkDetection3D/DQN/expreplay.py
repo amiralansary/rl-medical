@@ -271,13 +271,13 @@ class ExpReplay(DataFlow, Callback):
         # monitor number of played games and successes of reaching the target
         if self.player.num_games.count:
             self.trainer.monitors.put_scalar('n_games',
-                                             self.player.num_games.sum)
+                                    np.asscalar(self.player.num_games.sum))
         else:
             self.trainer.monitors.put_scalar('n_games', 0)
 
         if self.player.num_success.count:
             self.trainer.monitors.put_scalar('n_success',
-                                             self.player.num_success.sum)
+                                    np.asscalar(self.player.num_success.sum))
         else:
             self.trainer.monitors.put_scalar('n_success', 0)
 

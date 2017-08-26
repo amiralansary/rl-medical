@@ -7,7 +7,8 @@
 import tensorflow as tf
 from tensorpack_medical.utils.argtools import shape3d, shape5d
 
-from tensorpack import (layer_register, VariableHolder, StaticDynamicAxis)
+from tensorpack.models.common import (layer_register, VariableHolder)
+from tensorpack.models.shape_utils import StaticDynamicAxis
 
 __all__ = ['Conv3D', 'Deconv3D']
 
