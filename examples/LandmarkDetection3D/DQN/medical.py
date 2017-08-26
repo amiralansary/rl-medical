@@ -66,8 +66,6 @@ class MedicalPlayer(RLEnvironment):
         self.screen_dims = screen_dims
         self.nullop_start = nullop_start
 
-        self.num_games = StatCounter()
-        self.num_success = StatCounter()
         self.current_episode_score = StatCounter()
         self.actions = self.getMinimalActionSet()
 
@@ -94,7 +92,6 @@ class MedicalPlayer(RLEnvironment):
     def restart_episode(self):
         # reset the stat counter
         self.current_episode_score.reset()
-        self.reset_stat()
 
         with _ALE_LOCK:
             self.reset_game()
@@ -347,6 +344,8 @@ class MedicalPlayer(RLEnvironment):
     def reset_stat(self):
         """ Reset all statistics counter"""
         self.stats = defaultdict(list)
+        self.num_games = StatCounter()
+        self.num_success = StatCounter()
 
     def finish_episode(self):
         if self.current_episode_score.count:

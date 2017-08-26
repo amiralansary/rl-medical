@@ -49,7 +49,7 @@ ACTION_REPEAT = 4
 # the frequency of updating the target network
 UPDATE_FREQ = 4
 # DISCOUNT FACTOR - NATURE (0.99) - MEDICAL (0.9)
-GAMMA = 0.99
+GAMMA = 0.9 #0.99
 # REPLAY MEMORY SIZE - NATURE (1e6) - MEDICAL (1e5 view-patches)
 MEMORY_SIZE = 1e6
 # consume at least 1e6 * 27 * 27 * 27 bytes

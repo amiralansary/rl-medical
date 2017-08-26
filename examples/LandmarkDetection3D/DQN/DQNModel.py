@@ -80,8 +80,11 @@ class Model(ModelDesc):
 
         target = reward + (1.0 - tf.cast(isOver, tf.float32)) * self.gamma * tf.stop_gradient(best_v)
 
-        self.cost = tf.reduce_mean(symbf.huber_loss(
-                                   target - pred_action_value), name='cost')
+        # self.cost = tf.reduce_mean(symbf.huber_loss(
+        #                            target - pred_action_value), name='cost')
+        self.cost = tf.clip_by_value(tf.reduce_mean(symbf.huber_loss(
+                                    target - pred_action_value)),
+                                    -1, 1, name='cost')
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))   # monitor all W
         summary.add_moving_summary(self.cost)
@@ -104,8 +107,6 @@ class Model(ModelDesc):
                 logger.info("{} <- {}".format(target_name, new_name))
                 ops.append(v.assign(G.get_tensor_by_name(new_name + ':0')))
         return tf.group(*ops, name='update_target_network')
-
-
 
 
 
