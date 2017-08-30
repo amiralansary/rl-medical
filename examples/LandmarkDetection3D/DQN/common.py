@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: expreplay.py
+# File: common.py
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 # Modified: Amir Alansary <amiralansary@gmail.com>
 
@@ -14,11 +14,13 @@ from six.moves import queue
 
 # from tensorpack import *
 # from tensorpack.utils.stats import *
-from tensorpack import (OfflinePredictor, Triggerable)
+from tensorpack import (logger, OfflinePredictor, Triggerable)
 
 from tensorpack.utils.stats import StatCounter
 from tensorpack.utils.utils import get_tqdm_kwargs
 from tensorpack.utils.concurrency import (StoppableThread, ShareSessionThread)
+
+import traceback
 
 ###############################################################################
 
@@ -74,6 +76,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn):
         time.sleep(0.1)  # avoid simulator bugs
     stat = StatCounter()
     try:
+        # TODO test for size q and handle proper exceptions
         for _ in tqdm(range(nr_eval), **get_tqdm_kwargs()):
             r = q.get()
             stat.feed(r)
@@ -85,7 +88,8 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn):
         while q.qsize():
             r = q.get()
             stat.feed(r)
-    except:
+    except Exception as ex:
+        traceback.print_exc() # exactly traces the exception to what line it occurred and prints the entire trace of it.
         logger.exception("Eval")
     finally:
         if stat.count > 0:

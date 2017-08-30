@@ -1,7 +1,16 @@
-## sample a training subject
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# File: sampleTrain.py
+# Author: Amir Alansary <amiralansary@gmail.com>
 
 import numpy as np
 import SimpleITK as sitk
+from tensorpack import logger
+
+
+import threading
+_ALE_LOCK = threading.Lock()
+
 
 
 
@@ -87,11 +96,12 @@ class trainFiles(object):
         image_files = []
 
         for child in childDirs:
-            dir_path = self.dir + '/' + child
+            dir_path = os.path.join(self.dir, child)
             if not(os.path.isdir(dir_path)): continue
             # todo: extend to all nifti image extensions
             file_name = listFiles(dir_path,'*.nii.gz')
-            file_path = dir_path + '/' + file_name[0]
+            file_path = os.path.join(dir_path, file_name[0])
+            # logger.info(file_path)
             image_files.append(file_path)
 
         return image_files
@@ -103,17 +113,18 @@ class trainFiles(object):
         landmarks = []
 
         for child in childDirs:
-            dir_path = self.dir + '/' + child
+            dir_path = os.path.join(self.dir, child)
             if not(os.path.isdir(dir_path)): continue
 
             file_name = listFiles(dir_path,'*.mps')
-            file_path = dir_path + '/' + file_name[0]
+            file_path = os.path.join(dir_path, file_name[0])
+            # logger.info(file_path)
             points = np.array(extractPointsXML(file_path))
             landmarks.append(np.array(points[:,2]))
 
         return landmarks
 
-    def sample(self):
+    def sample_random(self):
         """ return a random sampled ImageRecord from the list of files
         """
         # todo: fix seed for a fair comparison between models
@@ -123,11 +134,31 @@ class trainFiles(object):
         return image, landmark, random_idx
 
 
-    def _get_target_loc(self,filename):
-        ''' return the center of mass of a given label (target location)
-        '''
-        label_image = NiftiImage().decode_nifti(self.label_file)
-        return np.round(center_of_mass(label_image.data))
+    def sample_circular(self,shuffle=False):
+        """ return a random sampled ImageRecord from the list of files
+        """
+        if shuffle:
+            indexes = rng.choice(x,len(x),replace=False)
+        else:
+            indexes = np.arange(self.num_files)
+
+        while True:
+            for idx in indexes:
+                sitk_image, image = NiftiImage().decode(self.images_list[idx])
+                landmark = np.array(sitk_image.TransformPhysicalPointToIndex(self.landmarks_list[idx]))
+                # logger.info('image{} {}'.format(idx, self.images_list[idx]))
+                yield image, landmark, idx
+
+
+    @property
+    def num_files(self):
+        return len(self.images_list)
+
+    # def _get_target_loc(self,filename):
+    #     ''' return the center of mass of a given label (target location)
+    #     '''
+    #     label_image = NiftiImage().decode_nifti(self.label_file)
+    #     return np.round(center_of_mass(label_image.data))
 
 
 

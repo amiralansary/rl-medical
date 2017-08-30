@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: DQNModel.py
+# File: medical.py
 # Author: Amir Alansary <amiralansary@gmail.com>
 
 import os
@@ -87,21 +87,25 @@ class MedicalPlayer(RLEnvironment):
                 # cv2.startWindowThread()
                 # cv2.namedWindow(self.windowname)
             self.train_files = trainFiles(train_directory)
+
+
+        self.sampled_files = self.train_files.sample_circular()
         self.restart_episode()
 
     def restart_episode(self):
         # reset the stat counter
         self.current_episode_score.reset()
+        self.num_games.feed(1)
 
-        with _ALE_LOCK:
-            self.reset_game()
-        # random null-ops start by performing random number of dummy actions at the beginning of each episode
-        n = self.rng.randint(self.nullop_start)
-        self.last_raw_screen = self.get_screen()
-        for k in range(n):
-            if k == n-1:
-                self.last_raw_screen = self.get_screen()
-            self.action(0)
+        # with _ALE_LOCK:
+        self.reset_game()
+        # # random null-ops start by performing random number of dummy actions at the beginning of each episode
+        # n = self.rng.randint(self.nullop_start)
+        # self.last_raw_screen = self.get_screen()
+        # for k in range(n):
+        #     if k == n-1:
+        #         self.last_raw_screen = self.get_screen()
+        #     self.action(0)
 
     def reset_game(self):
         """
@@ -114,23 +118,20 @@ class MedicalPlayer(RLEnvironment):
 
     def new_random_game(self):
         # print('\n============== new game ===============\n')
-        self.num_games.feed(1)
         self.terminal = False
-        self._loc_history = list([(0,0,0)]) * self._loc_history_length
         # sample a new image
-        self._game_img, self._target_loc, file_idx = self.train_files.sample()
-        self._game_dims = self._game_img.dims     # the image volume size
+        self._game_img, self._target_loc, file_idx = next(self.sampled_files)# self.train_files.sample()
+        # image volume size
+        self._game_dims = self._game_img.dims
         self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._game_dims[0]-self.screen_dims[0]-1, self._game_dims[1]-self.screen_dims[1]-1, self._game_dims[2]-self.screen_dims[2]-1))
 
-        x = random.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
-        y = random.randint(self._loc_dims[1]+1, self._loc_dims[4]-1)
-        z = random.randint(self._loc_dims[2]+1, self._loc_dims[5]-1)
+        x = self.rng.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
+        y = self.rng.randint(self._loc_dims[1]+1, self._loc_dims[4]-1)
+        z = self.rng.randint(self._loc_dims[2]+1, self._loc_dims[5]-1)
 
         self._location = (x,y,z)
         self._start_location = (x,y,z)
-        # self._location = (50,50,50)
         self._screen = self.get_screen()
-        # self._step(0)
         # self.render()
         # return self._screen, 0, 0, self.terminal
 

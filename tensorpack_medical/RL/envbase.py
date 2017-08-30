@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: common.py
+# File: envbase.py
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 # Modified: Amir Alansary <amiralansary@gmail.com>
 
