@@ -8,12 +8,6 @@ import SimpleITK as sitk
 from tensorpack import logger
 
 
-import threading
-_ALE_LOCK = threading.Lock()
-
-
-
-
 #######################################################################
 ## list file/directory names
 import glob

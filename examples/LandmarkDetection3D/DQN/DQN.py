@@ -64,11 +64,12 @@ NUM_ACTIONS = None
 METHOD = None
 
 TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/'
+VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/validate_files_svr'
 
 ###############################################################################
 
-def get_player(viz=False, train=False):
-    pl = MedicalPlayer(train_directory=TRAIN_DIR,screen_dims=IMAGE_SIZE)
+def get_player(directory=None, viz=False, train=False):
+    pl = MedicalPlayer(directory=directory,screen_dims=IMAGE_SIZE)
 
     if not train:
         # create a new axis to stack history on
@@ -114,7 +115,7 @@ class Model(DQNModel):
 def get_config():
     expreplay = ExpReplay(
         predictor_io_names=(['state'], ['Qvalue']),
-        player=get_player(train=True),
+        player=get_player(directory=TRAIN_DIR, train=True),
         state_shape=IMAGE_SIZE,
         batch_size=BATCH_SIZE,
         memory_size=MEMORY_SIZE,
@@ -139,8 +140,10 @@ def get_config():
                 ObjAttrParam(expreplay, 'exploration'),
                 [(0, 1), (10, 0.1), (320, 0.01)],   # 1->0.1 in the first million steps
                 interp='linear'),
-            PeriodicTrigger(Evaluator(
-                EVAL_EPISODE, ['state'], ['Qvalue'], get_player),
+            PeriodicTrigger(
+                Evaluator(nr_eval=EVAL_EPISODE, input_names=['state'],
+                          output_names=['Qvalue'], directory=VALID_DIR,
+                          get_player_fn=get_player),
                 every_k_epochs=10),
             HumanHyperParamSetter('learning_rate'),
         ],
@@ -170,7 +173,7 @@ if __name__ == '__main__':
     # ROM_FILE = args.rom
     METHOD = args.algo
     # set num_actions
-    NUM_ACTIONS = MedicalPlayer(train_directory=TRAIN_DIR,screen_dims=IMAGE_SIZE).get_action_space().num_actions()
+    NUM_ACTIONS = MedicalPlayer(directory=TRAIN_DIR,screen_dims=IMAGE_SIZE).get_action_space().num_actions()
     # NUM_ACTIONS = MedicalPlayer(ROM_FILE).get_action_space().num_actions()
     # logger.info("ROM: {}, Num Actions: {}".format(ROM_FILE, NUM_ACTIONS))
 

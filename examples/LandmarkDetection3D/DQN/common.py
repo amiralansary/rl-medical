@@ -45,7 +45,7 @@ def play_model(cfg, player):
 
 ###############################################################################
 
-def eval_with_funcs(predictors, nr_eval, get_player_fn):
+def eval_with_funcs(predictors, nr_eval, get_player_fn, directory=None):
     class Worker(StoppableThread, ShareSessionThread):
         def __init__(self, func, queue):
             super(Worker, self).__init__()
@@ -59,7 +59,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn):
 
         def run(self):
             with self.default_sess():
-                player = get_player_fn(train=False)
+                player = get_player_fn(directory=directory,train=False)
                 while not self.stopped():
                     try:
                         score = play_one_episode(player, self.func)
@@ -107,7 +107,10 @@ def eval_model_multithread(cfg, nr_eval, get_player_fn):
 ###############################################################################
 
 class Evaluator(Triggerable):
-    def __init__(self, nr_eval, input_names, output_names, get_player_fn):
+
+    def __init__(self, nr_eval, input_names,
+                 output_names, directory, get_player_fn):
+        self.directory = directory
         self.eval_episode = nr_eval
         self.input_names = input_names
         self.output_names = output_names
@@ -120,8 +123,8 @@ class Evaluator(Triggerable):
 
     def _trigger(self):
         t = time.time()
-        mean, max = eval_with_funcs(
-            self.pred_funcs, self.eval_episode, self.get_player_fn)
+        mean, max = eval_with_funcs(self.pred_funcs, self.eval_episode,
+                                    self.get_player_fn, self.directory)
         t = time.time() - t
         if t > 10 * 60:  # eval takes too long
             self.eval_episode = int(self.eval_episode * 0.94)

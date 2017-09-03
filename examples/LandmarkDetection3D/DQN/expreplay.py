@@ -278,8 +278,11 @@ class ExpReplay(DataFlow, Callback):
         if self.player.num_success.count:
             self.trainer.monitors.put_scalar('n_success',
                                     np.asscalar(self.player.num_success.sum))
+            self.trainer.monitors.put_scalar('n_success_ratio',
+                        self.player.num_success.sum/self.player.num_games.sum)
         else:
             self.trainer.monitors.put_scalar('n_success', 0)
+            self.trainer.monitors.put_scalar('n_success_ratio',0)
 
         # reset stats
         self.player.reset_stat()

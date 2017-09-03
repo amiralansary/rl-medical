@@ -40,7 +40,7 @@ class MedicalPlayer(RLEnvironment):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, train_directory=None, viz=0, screen_dims=(27,27,27), nullop_start=30,location_history_length=10):
+    def __init__(self, directory=None, viz=0, screen_dims=(27,27,27), nullop_start=30,location_history_length=10):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -54,6 +54,8 @@ class MedicalPlayer(RLEnvironment):
             episode (useful for training)
         """
         super(MedicalPlayer, self).__init__()
+
+        print('directory ', directory)
 
         # needed for the medical environment
         self.info = None
@@ -86,7 +88,7 @@ class MedicalPlayer(RLEnvironment):
                 self.windowname = os.path.basename(env_name)
                 # cv2.startWindowThread()
                 # cv2.namedWindow(self.windowname)
-            self.train_files = trainFiles(train_directory)
+            self.train_files = trainFiles(directory) # TODO rename trainFiles
 
 
         self.sampled_files = self.train_files.sample_circular()
@@ -209,9 +211,9 @@ class MedicalPlayer(RLEnvironment):
             # print('trying to go out')
             # logger.info('Trying to go out \n current location = {} - next_location = {} - action {} - reward = {} - terminal = {}'.format(current_loc, next_location, action, self.reward, self.terminal))
             self.reward = -1
-            self.terminal = True # end episode and restart
+            # self.terminal = True # end episode and restart
         else:
-            self.reward = self._calc_reward(current_loc,next_location)
+            self.reward = self._calc_reward(current_loc, next_location)
 
         # check if agent oscillates
         # self._add_loc(next_location)
@@ -234,9 +236,11 @@ class MedicalPlayer(RLEnvironment):
         #         self.terminal = False
         #         logger.info('Stuck at current location = {} - target location = {} - reward = {} - terminal = {}'.format(self._location, self._target_loc, self.reward, self.terminal))
 
-        self.current_episode_score.feed(self.reward)
+        # self.current_episode_score.feed(self.reward)
+
         if self.terminal:
             # logger.info('reward {}, terminal {}, screen '.format(self.reward, self.terminal, self.get_screen()))
+                    # detection error
             self.finish_episode()
             self.restart_episode()
 
@@ -349,8 +353,10 @@ class MedicalPlayer(RLEnvironment):
         self.num_success = StatCounter()
 
     def finish_episode(self):
-        if self.current_episode_score.count:
-            self.stats['score'].append(self.current_episode_score.sum)
+        self.current_episode_score.feed(np.linalg.norm(
+                                        self._location - self._target_loc))
+        # if self.current_episode_score.count:
+        self.stats['score'].append(self.current_episode_score.sum)
 
 
 # =============================================================================
