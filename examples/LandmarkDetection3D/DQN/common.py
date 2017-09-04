@@ -28,8 +28,8 @@ def play_one_episode(player, func, verbose=False):
     def f(s):
         spc = player.get_action_space()
         act = func([[s]])[0][0].argmax()
-        if random.random() < 0.001:
-            act = spc.sample()
+        # if random.random() < 0.001:
+        #     act = spc.sample()
         if verbose:
             print(act)
         return act

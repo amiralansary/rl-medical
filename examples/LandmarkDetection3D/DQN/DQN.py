@@ -69,7 +69,7 @@ VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/validate_files_svr
 ###############################################################################
 
 def get_player(directory=None, viz=False, train=False):
-    pl = MedicalPlayer(directory=directory,screen_dims=IMAGE_SIZE)
+    pl = MedicalPlayer(directory=directory,screen_dims=IMAGE_SIZE, viz=viz)
 
     if not train:
         # create a new axis to stack history on
@@ -185,7 +185,7 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue'])
         if args.task == 'play':
-            play_model(cfg, get_player(viz=0.01))
+            play_model(cfg, get_player(directory=VALID_DIR,viz=0.01))
         elif args.task == 'eval':
             eval_model_multithread(cfg, EVAL_EPISODE, get_player)
     else:

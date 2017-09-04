@@ -10,7 +10,6 @@ from tensorpack import ModelDesc, InputDesc
 from tensorpack.utils import logger
 from tensorpack.tfutils import (
     collection, summary, get_current_tower_context, optimizer, gradproc)
-from tensorpack.tfutils import symbolic_functions as symbf
 from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 
 
@@ -80,17 +79,17 @@ class Model(ModelDesc):
 
         target = reward + (1.0 - tf.cast(isOver, tf.float32)) * self.gamma * tf.stop_gradient(best_v)
 
-        # self.cost = tf.reduce_mean(symbf.huber_loss(
-        #                            target - pred_action_value), name='cost')
-        self.cost = tf.clip_by_value(tf.reduce_mean(symbf.huber_loss(
-                                    target - pred_action_value)),
-                                    -1, 1, name='cost')
+        self.cost = tf.clip_by_value(tf.losses.huber_loss(
+                                        target,
+                                        pred_action_value,
+                                        reduction=tf.losses.Reduction.MEAN)
+                                    , -1, 1, name='cost')
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))   # monitor all W
         summary.add_moving_summary(self.cost)
 
     def _get_optimizer(self):
-        lr = symbf.get_scalar_var('learning_rate', 1e-3, summary=True)
+        lr = tf.get_variable('learning_rate',initializer=1e-3, trainable=False)
         opt = tf.train.AdamOptimizer(lr, epsilon=1e-3)
         return optimizer.apply_grad_processors(
             opt, [gradproc.GlobalNormClip(10), gradproc.SummaryGradient()])
@@ -176,17 +175,17 @@ class Model3D(ModelDesc):
 
         target = reward + (1.0 - tf.cast(isOver, tf.float32)) * self.gamma * tf.stop_gradient(best_v)
 
-        # self.cost = tf.reduce_mean(symbf.huber_loss(
-        #                            target - pred_action_value), name='cost')
-        self.cost = tf.clip_by_value(tf.reduce_mean(symbf.huber_loss(
-                                    target - pred_action_value)),
-                                    -1, 1, name='cost')
+        self.cost = tf.clip_by_value(tf.losses.huber_loss(
+                                        target,
+                                        pred_action_value,
+                                        reduction=tf.losses.Reduction.MEAN)
+                                    , -1, 1, name='cost')
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))   # monitor all W
         summary.add_moving_summary(self.cost)
 
     def _get_optimizer(self):
-        lr = symbf.get_scalar_var('learning_rate', 1e-3, summary=True)
+        lr = tf.get_variable('learning_rate',initializer=1e-3, trainable=False)
         opt = tf.train.AdamOptimizer(lr, epsilon=1e-3)
         return optimizer.apply_grad_processors(
             opt, [gradproc.GlobalNormClip(10), gradproc.SummaryGradient()])

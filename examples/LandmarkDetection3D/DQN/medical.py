@@ -40,7 +40,7 @@ class MedicalPlayer(RLEnvironment):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=0, screen_dims=(27,27,27), nullop_start=30,location_history_length=10):
+    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=10):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -134,6 +134,10 @@ class MedicalPlayer(RLEnvironment):
         self._location = (x,y,z)
         self._start_location = (x,y,z)
         self._screen = self.get_screen()
+
+        self.cur_dist = np.linalg.norm(self._location - self._target_loc)
+
+
         # self.render()
         # return self._screen, 0, 0, self.terminal
 
@@ -221,8 +225,10 @@ class MedicalPlayer(RLEnvironment):
         # update screen, reward ,location, terminal
         self._location = next_location
         self._screen = self.get_screen()
-        # self.terminal = (next_location==self._target_loc).any()
-        if (np.array(self._location)==np.array(self._target_loc)).all():
+        self.cur_dist = np.linalg.norm(self._location - self._target_loc)
+
+        # if (np.array(self._location)==np.array(self._target_loc)).all():
+        if self.cur_dist<1:
             self.terminal = True
             self.num_success.feed(1)
             # logger.info('Target reached!! \n start location = {} - target_location = {} - reward = {} - terminal = {}'.format(self._start_location, self._target_loc, self.reward, self.terminal))
@@ -353,8 +359,7 @@ class MedicalPlayer(RLEnvironment):
         self.num_success = StatCounter()
 
     def finish_episode(self):
-        self.current_episode_score.feed(np.linalg.norm(
-                                        self._location - self._target_loc))
+        self.current_episode_score.feed(self.cur_dist)
         # if self.current_episode_score.count:
         self.stats['score'].append(self.current_episode_score.sum)
 
