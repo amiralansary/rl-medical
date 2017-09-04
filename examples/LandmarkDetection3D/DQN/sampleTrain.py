@@ -141,7 +141,8 @@ class trainFiles(object):
                 sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmark = np.array(sitk_image.TransformPhysicalPointToIndex(self.landmarks_list[idx]))
                 # logger.info('image{} {}'.format(idx, self.images_list[idx]))
-                yield image, landmark, idx
+                image_filename = self.images_list[idx]
+                yield image, landmark, image_filename
 
 
     @property
@@ -153,8 +154,6 @@ class trainFiles(object):
     #     '''
     #     label_image = NiftiImage().decode_nifti(self.label_file)
     #     return np.round(center_of_mass(label_image.data))
-
-
 
 # ===================================================================
 # ====================== Nifti Image Class ==========================

@@ -11,15 +11,16 @@ import numpy as np
 from tensorpack import logger
 from collections import (Counter, defaultdict)
 
+import cv2
+import time
 
-
+# import pyglet
 from gym import spaces
-
+# from gym.envs.classic_control import rendering
 
 from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
 from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
-
 
 
 
@@ -55,21 +56,10 @@ class MedicalPlayer(RLEnvironment):
         """
         super(MedicalPlayer, self).__init__()
 
-        print('directory ', directory)
-
         # needed for the medical environment
         self.info = None
         self.width, self.height, self.depth = screen_dims
         self._loc_history_length = location_history_length
-
-        # circular buffer to store history
-        self._loc_history = list([(0,0,0)]) * self._loc_history_length
-
-        self.screen_dims = screen_dims
-        self.nullop_start = nullop_start
-
-        self.current_episode_score = StatCounter()
-        self.actions = self.getMinimalActionSet()
 
         with _ALE_LOCK:
             self.rng = get_rng(self)
@@ -84,12 +74,28 @@ class MedicalPlayer(RLEnvironment):
                 viz = float(viz)
             self.viz = viz
             if self.viz and isinstance(self.viz, float):
-                self.render()
-                self.windowname = os.path.basename(env_name)
+                # self.window = pyglet.window.Window(1024,1024)
+                                                   #width=self.width,
+                                                   # height=self.height)
+                self.viewer = None
+                # self._render()
+                # self.windowname = os.path.basename(env_name)
                 # cv2.startWindowThread()
                 # cv2.namedWindow(self.windowname)
-            self.train_files = trainFiles(directory) # TODO rename trainFiles
+                # from gym.envs.classic_control import rendering
+                # self.viewer = SimpleImageViewer()
 
+
+        # circular buffer to store history
+        self._loc_history = list([(0,0,0)]) * self._loc_history_length
+
+        self.screen_dims = screen_dims
+        self.nullop_start = nullop_start
+
+        self.current_episode_score = StatCounter()
+        self.actions = self.getMinimalActionSet()
+
+        self.train_files = trainFiles(directory) # TODO rename trainFiles
 
         self.sampled_files = self.train_files.sample_circular()
         self.restart_episode()
@@ -121,8 +127,10 @@ class MedicalPlayer(RLEnvironment):
     def new_random_game(self):
         # print('\n============== new game ===============\n')
         self.terminal = False
+        self.viewer = None
         # sample a new image
-        self._game_img, self._target_loc, file_idx = next(self.sampled_files)# self.train_files.sample()
+        self._game_img, self._target_loc, image_filename = next(self.sampled_files)# self.train_files.sample()
+
         # image volume size
         self._game_dims = self._game_img.dims
         self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._game_dims[0]-self.screen_dims[0]-1, self._game_dims[1]-self.screen_dims[1]-1, self._game_dims[2]-self.screen_dims[2]-1))
@@ -136,11 +144,6 @@ class MedicalPlayer(RLEnvironment):
         self._screen = self.get_screen()
 
         self.cur_dist = np.linalg.norm(self._location - self._target_loc)
-
-
-        # self.render()
-        # return self._screen, 0, 0, self.terminal
-
 
     def action(self, act):
         """The environment's step function returns exactly what we need.
@@ -246,7 +249,6 @@ class MedicalPlayer(RLEnvironment):
 
         if self.terminal:
             # logger.info('reward {}, terminal {}, screen '.format(self.reward, self.terminal, self.get_screen()))
-                    # detection error
             self.finish_episode()
             self.restart_episode()
 
@@ -254,9 +256,26 @@ class MedicalPlayer(RLEnvironment):
 
     def current_state(self):
         """
-        :returns: a gray-scale (h, w) float ###uint8 image
+        :returns: a gray-scale (h, w, d) float ###uint8 image
         """
-        return self.get_screen()
+        screen = self.get_screen() # get the current 3d screen
+        with _ALE_LOCK:
+            if self.viz:
+                if isinstance(self.viz, float):
+                    self._render()
+            # if isinstance(self.viz, float):
+            #     from gym.envs.classic_control import rendering
+            #     self.viewer = SimpleImageViewer()
+            #     # self._render()
+            #     img = screen[:,:,int(self.depth/2)]
+            #     print(img.shape)
+            #     img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
+            #     print(img.shape)
+            #     self.viewer.imshow(img)
+            #     # cv2.imshow(self.windowname, ret)
+            #     # time.sleep(10000)
+
+        return screen
         # ret = self.get_screen()
         # # max-pooled over the last screen
         # ret = np.maximum(ret, self.last_raw_screen)
@@ -348,10 +367,6 @@ class MedicalPlayer(RLEnvironment):
     def lives(self):
         return None
 
-
-    def render(self):
-        pass
-
     def reset_stat(self):
         """ Reset all statistics counter"""
         self.stats = defaultdict(list)
@@ -362,6 +377,60 @@ class MedicalPlayer(RLEnvironment):
         self.current_episode_score.feed(self.cur_dist)
         # if self.current_episode_score.count:
         self.stats['score'].append(self.current_episode_score.sum)
+
+
+
+    def _render(self, return_rgb_array=False):
+
+        if self.viewer is None:
+            self.viewer = SimpleImageViewer()
+
+        # get dimensions
+        current_point = self._location
+        # get image and convert it to pyglet
+        screen = self.get_screen() # get the current 3d screen
+        img = screen[:,:,int(self.depth/2)] # sample the middle z-plane
+        img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB) # congvert to rgb
+        self.viewer.imshow(img)
+
+        # return self.viewer.render(return_rgb_array = mode=='rgb_array')
+
+# =============================================================================
+try:
+    import pyglet
+except ImportError as e:
+    reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'. But if you really just want to install all Gym dependencies and not have to think about it, 'pip install -e .[all]' or 'pip install gym[all]' will do it.")
+
+class SimpleImageViewer(object):
+    ''' Simple image viewer class for rendering images using pyglet'''
+
+    def __init__(self, display=None):
+        self.window = None
+        self.isopen = False
+        self.display = display
+
+    def imshow(self, arr):
+        if self.window is None:
+            height, width, channels = arr.shape
+            self.window = pyglet.window.Window(width=100, height=100, display=self.display)
+            self.width = width
+            self.height = height
+            self.isopen = True
+        assert arr.shape == (self.height, self.width, 3), "You passed in an image with the wrong number shape"
+        image = pyglet.image.ImageData(self.width, self.height, 'RGB', arr.tobytes(), pitch=self.width * -3)
+        pyglet.gl.glScalef(4.0, 4.0, 1.0)
+        self.window.clear()
+        self.window.switch_to()
+        self.window.dispatch_events()
+        image.blit(0,0)
+        self.window.flip()
+
+    def close(self):
+        if self.isopen:
+            self.window.close()
+            self.isopen = False
+    def __del__(self):
+        self.close()
 
 
 # =============================================================================
