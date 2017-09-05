@@ -191,25 +191,16 @@ class NiftiImage(object):
         assert self._is_nifti(image.name), "unknown image format for %r" % image.name
 
         if label:
-          sitk_image = sitk.ReadImage(image.name, sitk.sitkInt8)
+            sitk_image = sitk.ReadImage(image.name, sitk.sitkInt8)
         else:
-          sitk_image = sitk.ReadImage(image.name, sitk.sitkFloat32)
-        # get dimensions
-        # image.dims = (sitk_image.GetWidth(), sitk_image.GetHeight(), sitk_image.GetDepth())
-        # print(image.dims)
-        # image.height  = sitk_image.GetHeight()
-        # image.width   = sitk_image.GetWidth()
-        # image.depth   = sitk_image.GetDepth()
+            sitk_image = sitk.ReadImage(image.name, sitk.sitkFloat32)
+            sitk_image = sitk.RescaleIntensity(sitk_image,
+                                               outputMinimum=0,
+                                               outputMaximum=255)
+
+
         # Convert from [depth, width, height] to [width, height, depth]
         image.data = sitk.GetArrayFromImage(sitk_image)#.transpose(2,1,0)
         image.dims = np.shape(image.data)
-        # print('target val before normalization = ', image.data[65,52,63])
-        # print(image.data.shape)
-
-        if not label:
-            # todo: imporved normalization using percentiles
-          image.data = image.data * (255.0 / image.data.max())
-          # Convert from [0, 255] -> [-0.5, 0.5] floats.
-          # image.data = image.data * (1. / image.data.max()) - 0.5
 
         return sitk_image, image

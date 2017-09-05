@@ -313,6 +313,9 @@ class MedicalPlayer(RLEnvironment):
         # logger.info('self._game_img.data {}'.format(np.shape(self._game_img.data)))
         return screen
 
+    def get_plane(self,z=0):
+        return self._game_img.data[:, :, z]
+
 
     def _calc_reward(self, current_loc, next_loc):
         ''' Calculate the new reward based on the euclidean distance to the target location
@@ -388,10 +391,11 @@ class MedicalPlayer(RLEnvironment):
         # get dimensions
         current_point = self._location
         # get image and convert it to pyglet
-        screen = self.get_screen() # get the current 3d screen
-        img = screen[:,:,int(self.depth/2)] # sample the middle z-plane
-        img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB) # congvert to rgb
+        plane = self.get_plane(current_point[2])# z-plane
+        # img = screen[:,:,int(self.depth/2)] # sample the middle z-plane
+        img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
         self.viewer.imshow(img)
+        time.sleep(self.viz)
 
         # return self.viewer.render(return_rgb_array = mode=='rgb_array')
 
@@ -412,13 +416,24 @@ class SimpleImageViewer(object):
     def imshow(self, arr):
         if self.window is None:
             height, width, channels = arr.shape
-            self.window = pyglet.window.Window(width=100, height=100, display=self.display)
+            self.window = pyglet.window.Window(width=width,
+                                               height=height,
+                                               display=self.display)
             self.width = width
             self.height = height
             self.isopen = True
         assert arr.shape == (self.height, self.width, 3), "You passed in an image with the wrong number shape"
-        image = pyglet.image.ImageData(self.width, self.height, 'RGB', arr.tobytes(), pitch=self.width * -3)
-        pyglet.gl.glScalef(4.0, 4.0, 1.0)
+
+        rawData = (pyglet.gl.GLubyte * arr.size)(*list(arr.ravel().astype('int')))
+
+
+        image = pyglet.image.ImageData(self.width, self.height, 'RGB',
+                                       rawData, #arr.tostring(),
+                                       pitch=self.width * -3)
+
+        # pyglet.gl.glScalef(4.0, 4.0, 1.0)
+        # pyglet.gl.glColor3ub(colormap[m][0], colormap[m][1], colormap[m][2])
+
         self.window.clear()
         self.window.switch_to()
         self.window.dispatch_events()
@@ -431,7 +446,6 @@ class SimpleImageViewer(object):
             self.isopen = False
     def __del__(self):
         self.close()
-
 
 # =============================================================================
 # ================================== notes ====================================
