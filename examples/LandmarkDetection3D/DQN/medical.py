@@ -14,7 +14,6 @@ from collections import (Counter, defaultdict)
 import cv2
 import time
 
-# import pyglet
 from gym import spaces
 # from gym.envs.classic_control import rendering
 
@@ -96,6 +95,7 @@ class MedicalPlayer(RLEnvironment):
         self.actions = self.getMinimalActionSet()
 
         self.train_files = trainFiles(directory) # TODO rename trainFiles
+        self.filename = None
 
         self.sampled_files = self.train_files.sample_circular()
         self.restart_episode()
@@ -129,7 +129,7 @@ class MedicalPlayer(RLEnvironment):
         self.terminal = False
         self.viewer = None
         # sample a new image
-        self._game_img, self._target_loc, image_filename = next(self.sampled_files)# self.train_files.sample()
+        self._game_img, self._target_loc, self.filename = next(self.sampled_files)# self.train_files.sample()
 
         # image volume size
         self._game_dims = self._game_img.dims
@@ -215,8 +215,6 @@ class MedicalPlayer(RLEnvironment):
 
         # punish -1 reward if the agent tries to go out
         if go_out:
-            # print('trying to go out')
-            # logger.info('Trying to go out \n current location = {} - next_location = {} - action {} - reward = {} - terminal = {}'.format(current_loc, next_location, action, self.reward, self.terminal))
             self.reward = -1
             # self.terminal = True # end episode and restart
         else:
@@ -230,12 +228,10 @@ class MedicalPlayer(RLEnvironment):
         self._screen = self.get_screen()
         self.cur_dist = np.linalg.norm(self._location - self._target_loc)
 
-        # if (np.array(self._location)==np.array(self._target_loc)).all():
-        if self.cur_dist<1:
+        if (np.array(self._location)==np.array(self._target_loc)).all():
+        # if self.cur_dist<1:
             self.terminal = True
             self.num_success.feed(1)
-            # logger.info('Target reached!! \n start location = {} - target_location = {} - reward = {} - terminal = {}'.format(self._start_location, self._target_loc, self.reward, self.terminal))
-            # return (self.reward, self.terminal)
 
         # if self._oscillate:
         #     if (self._location==self._target_loc).any():
@@ -244,8 +240,6 @@ class MedicalPlayer(RLEnvironment):
         #     else:
         #         self.terminal = False
         #         logger.info('Stuck at current location = {} - target location = {} - reward = {} - terminal = {}'.format(self._location, self._target_loc, self.reward, self.terminal))
-
-        # self.current_episode_score.feed(self.reward)
 
         if self.terminal:
             # logger.info('reward {}, terminal {}, screen '.format(self.reward, self.terminal, self.get_screen()))
@@ -263,32 +257,7 @@ class MedicalPlayer(RLEnvironment):
             if self.viz:
                 if isinstance(self.viz, float):
                     self._render()
-            # if isinstance(self.viz, float):
-            #     from gym.envs.classic_control import rendering
-            #     self.viewer = SimpleImageViewer()
-            #     # self._render()
-            #     img = screen[:,:,int(self.depth/2)]
-            #     print(img.shape)
-            #     img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
-            #     print(img.shape)
-            #     self.viewer.imshow(img)
-            #     # cv2.imshow(self.windowname, ret)
-            #     # time.sleep(10000)
-
         return screen
-        # ret = self.get_screen()
-        # # max-pooled over the last screen
-        # ret = np.maximum(ret, self.last_raw_screen)
-        # if self.viz:
-        #     if isinstance(self.viz, float):
-        #         self.env.render()
-        #         # cv2.imshow(self.windowname, ret)
-        #         # time.sleep(self.viz)
-        # ret = ret[self.height_range[0]:self.height_range[1],self.height_range[2], :].astype('float32')
-        # # 0.299,0.587.0.114. same as rgb2y in torch/image
-        # # ret = cv2.cvtColor(ret, cv2.COLOR_RGB2GRAY)
-        # ret = cv2.resize(ret, self.image_shape)
-        # return ret.astype('uint8')  # to save some memory
 
 
     def _add_loc(self, location):
@@ -307,10 +276,6 @@ class MedicalPlayer(RLEnvironment):
         zmin = self._location[2] - int(self.depth/2) - 1
         zmax = self._location[2] + int(self.depth/2)
         screen = self._game_img.data[xmin:xmax, ymin:ymax, zmin:zmax]
-        # logger.info('xmin {} xmax {} xmax-xmin {} screen shape {} - image shape {}'.format(xmin,xmax,xmax-xmin,np.shape(screen),np.shape(self._game_img.data)))
-        # logger.info('screen {}'.format(screen))
-        # logger.info('xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(xmin,xmax,ymin,ymax,zmin,zmax))
-        # logger.info('self._game_img.data {}'.format(np.shape(self._game_img.data)))
         return screen
 
     def get_plane(self,z=0):
@@ -386,7 +351,7 @@ class MedicalPlayer(RLEnvironment):
     def _render(self, return_rgb_array=False):
 
         if self.viewer is None:
-            self.viewer = SimpleImageViewer()
+            self.viewer = SimpleImageViewer(filename=self.filename)
 
         # get dimensions
         current_point = self._location
@@ -394,6 +359,7 @@ class MedicalPlayer(RLEnvironment):
         plane = self.get_plane(current_point[2])# z-plane
         # img = screen[:,:,int(self.depth/2)] # sample the middle z-plane
         img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
+        img[current_point[0]-2:current_point[0]+2, current_point[1]-2:current_point[1]+2] = 255
         self.viewer.imshow(img)
         time.sleep(self.viz)
 
@@ -408,31 +374,44 @@ except ImportError as e:
 class SimpleImageViewer(object):
     ''' Simple image viewer class for rendering images using pyglet'''
 
-    def __init__(self, display=None):
+    def __init__(self, filename=None, display=None):
         self.window = None
         self.isopen = False
         self.display = display
+        self.filename = filename
 
     def imshow(self, arr):
         if self.window is None:
+            scale_x, scale_y = 3, 3
             height, width, channels = arr.shape
-            self.window = pyglet.window.Window(width=width,
-                                               height=height,
-                                               display=self.display)
+            self.window = pyglet.window.Window(width=scale_x*width,
+                                               height=scale_y*height,
+                                               caption=self.filename,
+                                               display=self.display,
+                                               resizable=True,
+                                               #fullscreen=True # buggy
+                                               )
+            screen_width = self.window.display.get_default_screen().width
+            screen_height = self.window.display.get_default_screen().height
+            location_x = screen_width / 2 - 2* width
+            location_y = screen_height / 2 - 2* height
+            self.window.set_location((int)(location_x), (int)(location_y))
+
+            pyglet.gl.glScalef(scale_x, scale_y, 1.0)
+
             self.width = width
             self.height = height
             self.isopen = True
+
         assert arr.shape == (self.height, self.width, 3), "You passed in an image with the wrong number shape"
 
+        # convert data typoe to GLubyte
         rawData = (pyglet.gl.GLubyte * arr.size)(*list(arr.ravel().astype('int')))
-
 
         image = pyglet.image.ImageData(self.width, self.height, 'RGB',
                                        rawData, #arr.tostring(),
                                        pitch=self.width * -3)
 
-        # pyglet.gl.glScalef(4.0, 4.0, 1.0)
-        # pyglet.gl.glColor3ub(colormap[m][0], colormap[m][1], colormap[m][2])
 
         self.window.clear()
         self.window.switch_to()

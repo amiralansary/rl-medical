@@ -80,7 +80,7 @@ def get_player(directory=None, viz=False, train=False):
         pl = HistoryFramePlayer(pl, hist_len=FRAME_HISTORY, concat_axis=3)
         pl = PreventStuckPlayer(pl, 30, 1)
 
-    pl = LimitLengthPlayer(pl, 300) # atari LimitLengthAgent(agent, 30000)
+    pl = LimitLengthPlayer(pl, 30000) # atari LimitLengthAgent(agent, 30000)
 
     return pl
 
@@ -185,7 +185,7 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue'])
         if args.task == 'play':
-            play_model(cfg, get_player(directory=VALID_DIR,viz=0.01))
+            play_model(cfg, get_player(directory=TRAIN_DIR,viz=0.01))
         elif args.task == 'eval':
             eval_model_multithread(cfg, EVAL_EPISODE, get_player)
     else:
