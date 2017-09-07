@@ -23,7 +23,7 @@ from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
 
 
 
-from sampleTrain import trainFiles
+from sampleTrain import trainFiles, trainFiles_cardio
 
 
 __all__ = ['MedicalPlayer']
@@ -94,7 +94,7 @@ class MedicalPlayer(RLEnvironment):
         self.current_episode_score = StatCounter()
         self.actions = self.getMinimalActionSet()
 
-        self.train_files = trainFiles(directory) # TODO rename trainFiles
+        self.train_files = trainFiles_cardio(directory)#trainFiles(directory) # TODO rename trainFiles
         self.filename = None
 
         self.sampled_files = self.train_files.sample_circular()
@@ -359,7 +359,8 @@ class MedicalPlayer(RLEnvironment):
         plane = self.get_plane(current_point[2])# z-plane
         # img = screen[:,:,int(self.depth/2)] # sample the middle z-plane
         img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
-        img[current_point[0]-2:current_point[0]+2, current_point[1]-2:current_point[1]+2] = 255
+        img[current_point[0]-2:current_point[0]+2, current_point[1]-2:current_point[1]+2] = (0,0,255)
+        img[self._target_loc[0]-2:self._target_loc[0]+2, self._target_loc[1]-2:self._target_loc[1]+2] = (255,0,0)
         self.viewer.imshow(img)
         time.sleep(self.viz)
 

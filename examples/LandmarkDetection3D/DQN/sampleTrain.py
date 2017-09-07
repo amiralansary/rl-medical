@@ -8,6 +8,8 @@ import SimpleITK as sitk
 from tensorpack import logger
 
 
+__all__ = ['trainFiles', 'trainFiles_cardio', 'NiftiImage']
+
 #######################################################################
 ## list file/directory names
 import glob
@@ -55,8 +57,20 @@ def extractPointsXML(filename):
 
     return x,y,z
 
+#######################################################################
+## extract points from txt file
+def extractPointsTXT(filename):
+    x = []
+    y = []
+    z = []
+    with open(filename) as f:
+        for line in f:
+            point = line.split()
+            x.append(float(point[0]))
+            y.append(float(point[1]))
+            z.append(float(point[2]))
 
-__all__ = ['trainFiles', 'NiftiImage']
+    return x,y,z
 
 #######################################################################
 
@@ -64,12 +78,7 @@ class trainFiles(object):
     """ A class for managing train files
 
         Attributes:
-        data:               input data
-        model:              model to train
-        sess (tf.Session):  the current session in use.
-        epoch_num (int):    number of epochs that have finished.
-        local_step (int):   number of steps that have finished in the current epoch.
-        global_step (int):  number of steps that have finished.
+        directory: input data directo
     """
 
     def __init__(self, directory=None):
@@ -155,6 +164,51 @@ class trainFiles(object):
     #     label_image = NiftiImage().decode_nifti(self.label_file)
     #     return np.round(center_of_mass(label_image.data))
 
+
+class trainFiles_cardio(trainFiles):
+    """ A class for managing train files for Ozan mri cardio data
+
+        Attributes:
+        directory: input data directo
+    """
+
+    def _listImages(self):
+        # extend directory path
+        current_dir = self.dir + '/images'
+
+        childDirs = listFiles(current_dir,'*.nii.gz')
+
+        image_files = []
+
+        for child in childDirs:
+            file_name = os.path.join(current_dir, child)
+            file_path = os.path.join(current_dir, file_name)
+            # logger.info(file_path)
+            image_files.append(file_path)
+
+        return image_files
+
+
+    def _listLandmarks(self):
+
+        # extend directory path
+        current_dir = self.dir + '/landmarks'
+
+        childDirs = listFiles(current_dir,'*.txt')
+        landmarks = []
+
+        for child in childDirs:
+            file_name = os.path.join(current_dir, child)
+            file_path = os.path.join(current_dir, file_name)
+            # logger.info(file_path)
+            points = np.array(extractPointsTXT(file_path))
+            landmarks.append(np.array(points[:,0])) # landmark point 0
+            # logger.info(np.array(points[:,2]))
+
+        return landmarks
+
+
+
 # ===================================================================
 # ====================== Nifti Image Class ==========================
 # ===================================================================
@@ -195,30 +249,28 @@ class NiftiImage(object):
         else:
             sitk_image = sitk.ReadImage(image.name, sitk.sitkFloat32)
             np_image = sitk.GetArrayFromImage(sitk_image)
-
             # threshold image between p10 and p95 then re-scale [0-255]
             p0 = np_image.min().astype('float')
             p10 = np.percentile(np_image,10)
             p95 = np.percentile(np_image,95)
             p100 = np_image.max().astype('float')
-
+            # logger.info('p0 {} , p5 {} , p10 {} , p90 {} , p95 {} , p100 {}'.format(p0,p5,p10,p90,p95,p100))
             sitk_image = sitk.Threshold(sitk_image,
                                         lower=p10,
                                         upper=p100,
                                         outsideValue=p10)
-
             sitk_image = sitk.Threshold(sitk_image,
                                         lower=p0,
                                         upper=p95,
                                         outsideValue=p95)
-
+            np_image = sitk.GetArrayFromImage(sitk_image)
             sitk_image = sitk.RescaleIntensity(sitk_image,
                                                outputMinimum=0,
                                                outputMaximum=255)
 
-
         # Convert from [depth, width, height] to [width, height, depth]
-        image.data = sitk.GetArrayFromImage(sitk_image)#.transpose(2,1,0)
+        # stupid simpleitk
+        image.data = sitk.GetArrayFromImage(sitk_image).transpose(2,1,0)#.astype('uint8')
         image.dims = np.shape(image.data)
 
         return sitk_image, image
