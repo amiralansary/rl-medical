@@ -42,7 +42,7 @@ from tensorpack_medical.models.conv3d import Conv3D
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS UNKNOWN
 BATCH_SIZE = 32 #64
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
-IMAGE_SIZE = (33, 33, 9)
+IMAGE_SIZE = (27, 27, 27)
 FRAME_HISTORY = 4
 ## FRAME SKIP FOR ATARI GAMES
 ACTION_REPEAT = 4
@@ -63,11 +63,11 @@ NUM_ACTIONS = None
 # dqn method - double or dual (default: double)
 METHOD = None
 
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/validate_files_svr'
+TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/'
+VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/validate_files_svr'
 
-TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/training'
-VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/testing'
+# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/training'
+# VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/testing'
 
 ###############################################################################
 
@@ -83,7 +83,7 @@ def get_player(directory=None, viz=False, train=False):
         pl = HistoryFramePlayer(pl, hist_len=FRAME_HISTORY, concat_axis=3)
         pl = PreventStuckPlayer(pl, 30, 1)
 
-    pl = LimitLengthPlayer(pl, 3000) # atari LimitLengthAgent(agent, 30000)
+    pl = LimitLengthPlayer(pl, 300) # atari LimitLengthAgent(agent, 30000)
 
     return pl
 
@@ -162,6 +162,7 @@ def get_config():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.')
     parser.add_argument('--load', help='load model')
     parser.add_argument('--task', help='task to perform',

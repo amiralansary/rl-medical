@@ -249,20 +249,20 @@ class NiftiImage(object):
         else:
             sitk_image = sitk.ReadImage(image.name, sitk.sitkFloat32)
             np_image = sitk.GetArrayFromImage(sitk_image)
-            # threshold image between p10 and p95 then re-scale [0-255]
+            # threshold image between p10 and p98 then re-scale [0-255]
             p0 = np_image.min().astype('float')
             p10 = np.percentile(np_image,10)
-            p95 = np.percentile(np_image,95)
+            p98 = np.percentile(np_image,98)
             p100 = np_image.max().astype('float')
-            # logger.info('p0 {} , p5 {} , p10 {} , p90 {} , p95 {} , p100 {}'.format(p0,p5,p10,p90,p95,p100))
+            # logger.info('p0 {} , p5 {} , p10 {} , p90 {} , p98 {} , p100 {}'.format(p0,p5,p10,p90,p98,p100))
             sitk_image = sitk.Threshold(sitk_image,
                                         lower=p10,
                                         upper=p100,
                                         outsideValue=p10)
             sitk_image = sitk.Threshold(sitk_image,
                                         lower=p0,
-                                        upper=p95,
-                                        outsideValue=p95)
+                                        upper=p98,
+                                        outsideValue=p98)
             np_image = sitk.GetArrayFromImage(sitk_image)
             sitk_image = sitk.RescaleIntensity(sitk_image,
                                                outputMinimum=0,
