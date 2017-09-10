@@ -26,6 +26,7 @@ from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
 
 
 from sampleTrain import trainFiles, trainFiles_cardio
+from viewer import SimpleImageViewer
 
 
 __all__ = ['MedicalPlayer']
@@ -42,7 +43,7 @@ class MedicalPlayer(RLEnvironment):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=10):
+    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=10, save_gif=False):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -61,13 +62,14 @@ class MedicalPlayer(RLEnvironment):
         self.info = None
         self.width, self.height, self.depth = screen_dims
         self._loc_history_length = location_history_length
+        self.save_gif = save_gif
 
         with _ALE_LOCK:
             self.rng = get_rng(self)
             # visualization setup
             if isinstance(viz, six.string_types):   # check if viz is a string
                 assert os.path.isdir(viz), viz
-                # todo implement save states to images
+                # todo implement save states to images -> save gif
                 # self.env.env.ale.setString(b'record_screen_dir', viz)
                 # rgb_image = self.env.render('rgb_array')
                 viz = 0
@@ -75,18 +77,8 @@ class MedicalPlayer(RLEnvironment):
                 viz = float(viz)
             self.viz = viz
             if self.viz and isinstance(self.viz, float):
-                # self.window = pyglet.window.Window(1024,1024)
-                                                   #width=self.width,
-                                                   # height=self.height)
                 self.viewer = None
                 self.gif_buffer = []
-                # self._render()
-                # self.windowname = os.path.basename(env_name)
-                # cv2.startWindowThread()
-                # cv2.namedWindow(self.windowname)
-                # from gym.envs.classic_control import rendering
-                # self.viewer = SimpleImageViewer()
-
 
         # circular buffer to store history
         self._loc_history = list([(0,0,0)]) * self._loc_history_length
@@ -108,7 +100,6 @@ class MedicalPlayer(RLEnvironment):
         # reset the stat counter
         self.current_episode_score.reset()
         self.num_games.feed(1)
-
         # with _ALE_LOCK:
         self.reset_game()
         # # random null-ops start by performing random number of dummy actions at the beginning of each episode
@@ -135,7 +126,6 @@ class MedicalPlayer(RLEnvironment):
         # sample a new image
         self._game_img, self._target_loc, self.filepath = next(self.sampled_files)# self.train_files.sample()
         self.filename = os.path.basename(self.filepath)
-        # logger.info('game dims = {} - target location = {} - filename = {}'.format(self._game_img.dims, self._target_loc, self.filename))
 
         # image volume size
         self._game_dims = self._game_img.dims
@@ -357,9 +347,7 @@ class MedicalPlayer(RLEnvironment):
         self.stats['score'].append(self.current_episode_score.sum)
 
 
-
     def _render(self, return_rgb_array=False):
-
         # get dimensions
         current_point = self._location
         target_point = self._target_loc
@@ -369,8 +357,8 @@ class MedicalPlayer(RLEnvironment):
         # skip if there is a viewer open
         if self.viewer is None:
             self.viewer = SimpleImageViewer(arr=img,
-                                            scale_x=4,
-                                            scale_y=4,
+                                            scale_x=2,
+                                            scale_y=2,
                                             filepath=self.filename)
             self.gif_buffer = []
         # display image
@@ -392,142 +380,23 @@ class MedicalPlayer(RLEnvironment):
                                 pos_x=current_point[0],
                                 pos_y=current_point[1],
                                 color=(0.0,0.0,1.0,1.0))
+
         # render and wait (viz) time between frames
         self.viewer.render()
         # time.sleep(self.viz)
         # save gif
-        self.savegif = True
-        if self.savegif:
+        if self.save_gif:
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             data = image_data.get_data('RGB', image_data.width * 3)
             arr = np.array([int(string_i) for string_i in data])
-            # logger.info(np.shape(arr))
-            arr = np.reshape(arr,(image_data.height, image_data.width, -1)).transpose(1,0,2)
+            arr = np.reshape(arr,(image_data.height, image_data.width, -1))
+            #.transpose(1,0,2)
             im = Image.fromarray(arr.astype('uint8'))
             self.gif_buffer.append(im)
-            # logger.info(np.shape(arr))
+
             if self.terminal:
                 gifname = self.filename.split('.')[0] + '.gif'
                 self.viewer.savegif(gifname,arr=self.gif_buffer, duration=self.viz)
-
-        # logger.info('window size {} image size {}'.format(self.viewer.window.get_size(), img.shape))
-
-        # return self.viewer.render(return_rgb_array = mode=='rgb_array')
-
-# =============================================================================
-import imageio
-try:
-    import pyglet
-    from pyglet.gl import *
-except ImportError as e:
-    reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'. But if you really just want to install all Gym dependencies and not have to think about it, 'pip install -e .[all]' or 'pip install gym[all]' will do it.")
-
-class SimpleImageViewer(object):
-    ''' Simple image viewer class for rendering images using pyglet'''
-
-    def __init__(self, arr, scale_x=1, scale_y=1, filepath=None, display=None):
-
-        self.isopen = False
-        self.scale_x = scale_x
-        self.scale_y = scale_y
-        self.display = display
-        self.filepath = filepath
-        self.filename = os.path.basename(filepath)
-
-
-        # initialize window with the input image
-        height, width, channels = arr.shape
-        assert arr.shape == (height, width, 3), "You passed in an image with the wrong number shape"
-        self.window = pyglet.window.Window(width=scale_x*width,
-                                           height=scale_y*height,
-                                           caption=self.filename,
-                                           display=self.display,
-                                           resizable=True,
-                                           #fullscreen=True # buggy
-                                           )
-        screen_width = self.window.display.get_default_screen().width
-        screen_height = self.window.display.get_default_screen().height
-        location_x = screen_width / 2 - 2* width
-        location_y = screen_height / 2 - 2* height
-        self.window.set_location((int)(location_x), (int)(location_y))
-
-        glScalef(scale_x, scale_y, 1.0)
-
-        self.img_width = width
-        self.img_height = height
-        self.isopen = True
-
-        self.window_width, self.window_height = self.window.get_size()
-
-        # turn on transparency
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-
-
-    def draw_image(self, arr):
-        # convert data typoe to GLubyte
-        rawData = (GLubyte * arr.size)(*list(arr.ravel().astype('int')))
-        image = pyglet.image.ImageData(self.img_width, self.img_height, 'RGB',
-                                       rawData, #arr.tostring(),
-                                       pitch=self.img_width * -3)
-        self.window.clear()
-        self.window.switch_to()
-        self.window.dispatch_events()
-        image.blit(0,0)
-
-
-    def draw_point(self,x=0.0,y=0.0,z=0.0):
-        x = self.img_height - x
-        y = y
-        # pyglet.graphics.draw(1, GL_POINTS,
-        #     ('v2i', (x_new, y_new)),
-        #     ('c3B', (255, 0, 0))
-        # )
-        glBegin(GL_POINTS) # draw point
-        glVertex3f(x, y, z)
-        glEnd()
-
-
-    def draw_circle(self, radius=10, res=30, pos_x=0, pos_y=0,
-                    color=(1.0,1.0,1.0,1.0),**attrs):
-
-        points = []
-        # window start indexing from bottom left
-        x = self.img_height - pos_x
-        y = pos_y
-
-        for i in range(res):
-            ang = 2*math.pi*i / res
-            points.append((math.cos(ang)*radius + y ,
-                           math.sin(ang)*radius + x))
-
-        # draw filled polygon
-        if   len(points) == 4 : glBegin(GL_QUADS)
-        elif len(points)  > 4 : glBegin(GL_POLYGON)
-        else: glBegin(GL_TRIANGLES)
-        for p in points:
-            # choose color
-            glColor4f(color[0],color[1],color[2],color[3]);
-            glVertex3f(p[0], p[1],0)  # draw each vertex
-        glEnd()
-        # reset color
-        glColor4f(1.0, 1.0, 1.0, 1.0);
-
-
-    def render(self):
-        self.window.flip()
-
-    def savegif(self,filename=None,arr=None,duration=0):
-        # imageio.mimsave(filename, arr)
-        arr[0].save(filename, save_all=True, append_images=arr[1:],
-                    duration=duration)
-
-    def close(self):
-        if self.isopen:
-            self.window.close()
-            self.isopen = False
-    def __del__(self):
-        self.close()
 
 # =============================================================================
 # ================================== notes ====================================

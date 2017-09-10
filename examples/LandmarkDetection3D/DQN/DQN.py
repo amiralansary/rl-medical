@@ -189,7 +189,7 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue'])
         if args.task == 'play':
-            play_model(cfg, get_player(directory=TRAIN_DIR,viz=0.01))
+            play_model(cfg, get_player(directory=VALID_DIR,viz=0.01))
         elif args.task == 'eval':
             eval_model_multithread(cfg, EVAL_EPISODE, get_player)
     else:
