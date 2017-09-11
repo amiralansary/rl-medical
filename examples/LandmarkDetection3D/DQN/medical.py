@@ -129,8 +129,8 @@ class MedicalPlayer(RLEnvironment):
         self.filename = os.path.basename(self.filepath)
 
         # image volume size
-        self._game_dims = self._game_img.dims
-        self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._game_dims[0]-self.screen_dims[0]-1, self._game_dims[1]-self.screen_dims[1]-1, self._game_dims[2]-self.screen_dims[2]-1))
+        self._image_dims = self._game_img.dims
+        self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._image_dims[0]-self.screen_dims[0]-1, self._image_dims[1]-self.screen_dims[1]-1, self._image_dims[2]-self.screen_dims[2]-1))
 
         x = self.rng.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
         y = self.rng.randint(self._loc_dims[1]+1, self._loc_dims[4]-1)
@@ -165,7 +165,7 @@ class MedicalPlayer(RLEnvironment):
         # UP Z+
         if (act==0):
             next_location = (current_loc[0],current_loc[1],current_loc[2]+1)
-            if (next_location[2]>=self._loc_dims[5]):
+            if (next_location[2]>self._image_dims[2]):
                 # print(' trying to go out the image Z+ ',)
                 next_location = current_loc
                 go_out = True
@@ -173,7 +173,7 @@ class MedicalPlayer(RLEnvironment):
         # FORWARD Y+
         if (act==1):
             next_location = (current_loc[0],current_loc[1]+1,current_loc[2])
-            if (next_location[1]>=self._loc_dims[4]):
+            if (next_location[1]>self._image_dims[1]):
                 # print(' trying to go out the image Y+ ',)
                 next_location = current_loc
                 go_out = True
@@ -181,7 +181,7 @@ class MedicalPlayer(RLEnvironment):
         # RIGHT X+
         if (act==2):
             next_location = (current_loc[0]+1,current_loc[1],current_loc[2])
-            if (next_location[0]>=self._loc_dims[3]):
+            if (next_location[0]>self._image_dims[0]):
                 # print(' trying to go out the image X+ ',)
                 next_location = current_loc
                 go_out = True
@@ -189,7 +189,7 @@ class MedicalPlayer(RLEnvironment):
         # LEFT X-
         if (act==3):
             next_location = (current_loc[0]-1,current_loc[1],current_loc[2])
-            if (next_location[0]<=self._loc_dims[0]):
+            if (next_location[0]<0):
                 # print(' trying to go out the image X- ',)
                 next_location = current_loc
                 go_out = True
@@ -197,7 +197,7 @@ class MedicalPlayer(RLEnvironment):
         # BACKWARD Y-
         if (act==4):
             next_location = (current_loc[0],current_loc[1]-1,current_loc[2])
-            if (next_location[1]<=self._loc_dims[1]):
+            if (next_location[1]<0):
                 # print(' trying to go out the image Y- ',)
                 next_location = current_loc
                 go_out = True
@@ -205,7 +205,7 @@ class MedicalPlayer(RLEnvironment):
         # DOWN Z-
         if (act==5):
             next_location = (current_loc[0],current_loc[1],current_loc[2]-1)
-            if (next_location[2]<=self._loc_dims[2]):
+            if (next_location[2]<0):
                 # print(' trying to go out the image Z- ',)
                 next_location = current_loc
                 go_out = True
@@ -269,14 +269,48 @@ class MedicalPlayer(RLEnvironment):
 
 
     def get_screen(self):
-
+        # initialize screen with zeros - all background
+        screen = np.zeros((self.screen_dims))
+        screen_xmin, screen_ymin, screen_zmin = 0, 0 ,0
+        screen_xmax, screen_ymax, screen_zmax = self.screen_dims
+        # extract boundary locations
         xmin = self._location[0] - int(self.width/2) - 1
         xmax = self._location[0] + int(self.width/2)
         ymin = self._location[1] - int(self.height/2) - 1
         ymax = self._location[1] + int(self.height/2)
         zmin = self._location[2] - int(self.depth/2) - 1
         zmax = self._location[2] + int(self.depth/2)
-        screen = self._game_img.data[xmin:xmax, ymin:ymax, zmin:zmax]
+
+        # logger.info('image dims {}'.format(self._image_dims))
+        # logger.info('before xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(xmin,xmax,ymin,ymax,zmin,zmax))
+        # logger.info('before screen xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(screen_xmin,screen_xmax,screen_ymin,screen_ymax,screen_zmin,screen_zmax))
+
+        # check if they violate image boundary and fix it
+        if xmin<0:
+            screen_xmax = self.screen_dims[0]-abs(xmin)
+            xmin = 0
+        if ymin<0:
+            screen_ymax = self.screen_dims[1]-abs(ymin)
+            ymin = 0
+        if zmin<0:
+            screen_zmax = self.screen_dims[2]-abs(zmin)
+            zmin = 0
+        if xmax>self._image_dims[0]:
+            screen_xmin = xmax-self._image_dims[0]
+            xmax = self._image_dims[0]
+        if ymax>self._image_dims[1]:
+            screen_ymin = ymax-self._image_dims[1]
+            ymax = self._image_dims[1]
+        if zmax>self._image_dims[2]:
+            screen_zmin = zmax-self._image_dims[2]
+            zmax = self._image_dims[2]
+
+        # logger.info('after xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(xmin,xmax,ymin,ymax,zmin,zmax))
+        # logger.info('after screen xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(screen_xmin,screen_xmax,screen_ymin,screen_ymax,screen_zmin,screen_zmax))
+
+        # update current screen
+        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._game_img.data[xmin:xmax, ymin:ymax, zmin:zmax]
+
         return screen
 
     def get_plane(self,z=0):
