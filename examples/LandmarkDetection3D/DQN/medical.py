@@ -89,11 +89,12 @@ class MedicalPlayer(RLEnvironment):
         self.current_episode_score = StatCounter()
         self.actions = self.getMinimalActionSet()
 
-        # self.train_files = trainFiles_cardio(directory)
-        self.train_files = trainFiles(directory)
+        self.train_files = trainFiles_cardio(directory)
+        # self.train_files = trainFiles(directory)
         self.filepath = None
 
         self.sampled_files = self.train_files.sample_circular()
+
         self.restart_episode()
 
     def restart_episode(self):

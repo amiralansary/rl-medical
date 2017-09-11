@@ -104,7 +104,6 @@ class trainFiles(object):
             # todo: extend to all nifti image extensions
             file_name = listFiles(dir_path,'*.nii.gz')
             file_path = os.path.join(dir_path, file_name[0])
-            # logger.info(file_path)
             image_files.append(file_path)
 
         return image_files
@@ -121,7 +120,6 @@ class trainFiles(object):
 
             file_name = listFiles(dir_path,'*.mps')
             file_path = os.path.join(dir_path, file_name[0])
-            # logger.info(file_path)
             points = np.array(extractPointsXML(file_path))
             landmarks.append(np.array(points[:,2]))
 
@@ -149,10 +147,8 @@ class trainFiles(object):
             for idx in indexes:
                 sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmark = np.array(sitk_image.TransformPhysicalPointToIndex(self.landmarks_list[idx]))
-                # logger.info('image{} {}'.format(idx, self.images_list[idx]))
                 image_filename = self.images_list[idx]
                 yield image, landmark, image_filename
-
 
     @property
     def num_files(self):
@@ -175,37 +171,47 @@ class trainFiles_cardio(trainFiles):
     def _listImages(self):
         # extend directory path
         current_dir = self.dir + '/images'
-
         childDirs = listFiles(current_dir,'*.nii.gz')
-
         image_files = []
 
         for child in childDirs:
             file_name = os.path.join(current_dir, child)
             file_path = os.path.join(current_dir, file_name)
-            # logger.info(file_path)
             image_files.append(file_path)
 
         return image_files
 
 
     def _listLandmarks(self):
-
         # extend directory path
         current_dir = self.dir + '/landmarks'
-
         childDirs = listFiles(current_dir,'*.txt')
         landmarks = []
 
         for child in childDirs:
             file_name = os.path.join(current_dir, child)
             file_path = os.path.join(current_dir, file_name)
-            # logger.info(file_path)
             points = np.array(extractPointsTXT(file_path))
-            landmarks.append(np.array(points[:,0])) # landmark point 0
-            # logger.info(np.array(points[:,2]))
+            landmark = np.array(points[:,0]) # landmark point 0
+            landmarks.append(landmark)
 
         return landmarks
+
+    def sample_circular(self,shuffle=False):
+        """ return a random sampled ImageRecord from the list of files
+        """
+        if shuffle:
+            indexes = rng.choice(x,len(x),replace=False)
+        else:
+            indexes = np.arange(self.num_files)
+
+        while True:
+            for idx in indexes:
+                sitk_image, image = NiftiImage().decode(self.images_list[idx])
+                landmark = self.landmarks_list[idx]
+                image_filename = self.images_list[idx]
+                yield image, landmark, image_filename
+
 
 
 
