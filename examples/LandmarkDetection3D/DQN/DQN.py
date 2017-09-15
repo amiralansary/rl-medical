@@ -42,7 +42,7 @@ from tensorpack_medical.models.conv3d import Conv3D
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS UNKNOWN
 BATCH_SIZE = 32 #64
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
-IMAGE_SIZE = (27, 27, 27)
+IMAGE_SIZE = (27, 27, 21)
 FRAME_HISTORY = 4
 ## FRAME SKIP FOR ATARI GAMES
 ACTION_REPEAT = 4
@@ -63,11 +63,11 @@ NUM_ACTIONS = None
 # dqn method - double or dual (default: double)
 METHOD = None
 
-TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/'
-VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/validate_files_svr'
+# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/'
+# VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/validate_files_svr'
 
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/training'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/testing'
+TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/training'
+VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/testing'
 
 ###############################################################################
 
@@ -194,7 +194,7 @@ if __name__ == '__main__':
             eval_model_multithread(cfg, EVAL_EPISODE, get_player)
     else:
         # todo: variable log dir
-        logger.set_logger_dir( 'train_log/DQN-cardio'
+        logger.set_logger_dir( 'train_log/DQN_cardio'
             # os.path.join('train_log', 'DQN-{}'.format(
             #     os.path.basename(ROM_FILE).split('.')[0]))
             )

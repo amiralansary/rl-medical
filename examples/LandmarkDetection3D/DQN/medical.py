@@ -18,6 +18,11 @@ from PIL import Image
 
 from gym import spaces
 # from gym.envs.classic_control import rendering
+try:
+    import pyglet
+except ImportError as e:
+    reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'. But if you really just want to install all Gym dependencies and not have to think about it, 'pip install -e .[all]' or 'pip install gym[all]' will do it.")
+
 
 from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
@@ -43,7 +48,7 @@ class MedicalPlayer(RLEnvironment):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=10, save_gif=False):
+    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=16, save_gif=True):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -217,9 +222,6 @@ class MedicalPlayer(RLEnvironment):
         else:
             self.reward = self._calc_reward(current_loc, next_location)
 
-        # check if agent oscillates
-        # self._add_loc(next_location)
-        # if self._oscillate: done  = True
         # update screen, reward ,location, terminal
         self._location = next_location
         self._screen = self.get_screen()
@@ -237,6 +239,11 @@ class MedicalPlayer(RLEnvironment):
         #     else:
         #         self.terminal = False
         #         logger.info('Stuck at current location = {} - target location = {} - reward = {} - terminal = {}'.format(self._location, self._target_loc, self.reward, self.terminal))
+
+        # check if agent oscillates
+        self._add_loc(next_location)
+        if self._oscillate: self.terminal = True
+
 
         if self.terminal:
             # logger.info('reward {}, terminal {}, screen '.format(self.reward, self.terminal, self.get_screen()))
