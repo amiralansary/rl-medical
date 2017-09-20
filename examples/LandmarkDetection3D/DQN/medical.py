@@ -48,7 +48,7 @@ class MedicalPlayer(RLEnvironment):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=16, save_gif=True):
+    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=16, save_gif=False):
         """
         :param train_directory: environment or game name
         :param viz: visualization
