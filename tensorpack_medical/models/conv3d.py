@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: expreplay.py
+# File: conv3d.py
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 # Modified: Amir Alansary <amiralansary@gmail.com>
 
@@ -26,8 +26,8 @@ def Conv3D(x, out_channel, kernel_shape,
         x (tf.Tensor): a 5D tensor.
             Must have known number of channels, but can have other unknown dimensions.
         out_channel (int): number of output channel.
-        kernel_shape: (h, w) tuple or a int.
-        stride: (h, w) tuple or a int.
+        kernel_shape: (d, h, w) tuple or a int.
+        stride: (d, h, w) tuple or a int.
         padding (str): 'valid' or 'same'. Case insensitive.
         split (int): Split channels as used in Alexnet. Defaults to 1 (no split).
         W_init: initializer for W. Defaults to `variance_scaling_initializer`.

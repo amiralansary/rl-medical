@@ -22,14 +22,13 @@ from tensorpack import *
 from tensorpack.utils.concurrency import *
 from tensorpack.utils.serialize import *
 from tensorpack.utils.stats import *
-from tensorpack.tfutils import symbolic_functions as symbf
 from tensorpack.tfutils.gradproc import MapGradient, SummaryGradient
 from tensorpack.utils.gpu import get_nr_gpu
 
 
 from tensorpack.RL import *
 from simulator import *
-import common
+# import common
 from common import (play_model, Evaluator, eval_model_multithread,
                     play_one_episode, play_n_episodes)
 
@@ -39,40 +38,62 @@ if six.PY3:
 else:
     CancelledError = Exception
 
-IMAGE_SIZE = (84, 84)
+###############################################################################
+
+from medical import MedicalPlayer
+
+from tensorpack_medical.models.conv3d import Conv3D, MaxPooling3D
+from tensorpack_medical.RL.history import HistoryFramePlayer
+from tensorpack_medical.RL.common import (MapPlayerState, PreventStuckPlayer,
+                           LimitLengthPlayer)
+
+from tensorpack.tfutils import (get_current_tower_context, optimizer)
+from tensorpack.tfutils import symbolic_functions as symbf
+from tensorpack import (ModelDesc, InputDesc, PReLU, FullyConnected, argscope)
+
+###############################################################################
+
+BATCH_SIZE = 128
+# BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
+IMAGE_SIZE = (27, 27, 21)
 FRAME_HISTORY = 4
-GAMMA = 0.99
+# DISCOUNT FACTOR - NATURE (0.99) - MEDICAL (0.9)
+GAMMA = 0.9 #0.99
+# TODO
 CHANNEL = FRAME_HISTORY * 3
 IMAGE_SHAPE3 = IMAGE_SIZE + (CHANNEL,)
-
+# TODO
 LOCAL_TIME_MAX = 5
 STEPS_PER_EPOCH = 6000
 EVAL_EPISODE = 50
-BATCH_SIZE = 128
 PREDICT_BATCH_SIZE = 15     # batch for efficient forward
 SIMULATOR_PROC = 50
 PREDICTOR_THREAD_PER_GPU = 3
 PREDICTOR_THREAD = None
-
+# MEDICAL DETECTION ACTION SPACE (UP,FORWARD,RIGHT,LEFT,BACKWARD,DOWN)
 NUM_ACTIONS = None
 ENV_NAME = None
 
+###############################################################################
 
-def get_player(viz=False, train=False, dumpdir=None):
-    pl = GymEnv(ENV_NAME, viz=viz, dumpdir=dumpdir)
-    pl = MapPlayerState(pl, lambda img: cv2.resize(img, IMAGE_SIZE[::-1]))
+def get_player(directory=None,viz=False, train=False, dumpdir=None):
+    pl = MedicalPlayer(directory=directory, viz=viz, dumpdir=dumpdir)
+    # pl = MapPlayerState(pl, lambda img: cv2.resize(img, IMAGE_SIZE[::-1]))
+    pl = MapPlayerState(pl, lambda im: im[:, :, :, np.newaxis]) # 3d states
     pl = HistoryFramePlayer(pl, FRAME_HISTORY)
     if not train:
         pl = PreventStuckPlayer(pl, 30, 1)
     else:
-        pl = LimitLengthPlayer(pl, 60000)
+        pl = LimitLengthPlayer(pl, 6000) # atari LimitLengthAgent(agent, 60000)
     return pl
 
+###############################################################################
 
 class MySimulatorWorker(SimulatorProcess):
     def _build_player(self):
         return get_player(train=True)
 
+###############################################################################
 
 class Model(ModelDesc):
     def _get_inputs(self):
@@ -86,13 +107,13 @@ class Model(ModelDesc):
     def _get_NN_prediction(self, image):
         image = tf.cast(image, tf.float32) / 255.0
         with argscope(Conv2D, nl=tf.nn.relu):
-            l = Conv2D('conv0', image, out_channel=32, kernel_shape=5)
-            l = MaxPooling('pool0', l, 2)
-            l = Conv2D('conv1', l, out_channel=32, kernel_shape=5)
-            l = MaxPooling('pool1', l, 2)
-            l = Conv2D('conv2', l, out_channel=64, kernel_shape=4)
-            l = MaxPooling('pool2', l, 2)
-            l = Conv2D('conv3', l, out_channel=64, kernel_shape=3)
+            l = Conv3D('conv0', image, out_channel=32, kernel_shape=5)
+            l = MaxPooling3D('pool0', l, 2)
+            l = Conv3D('conv1', l, out_channel=32, kernel_shape=5)
+            l = MaxPooling3D('pool1', l, 2)
+            l = Conv3D('conv2', l, out_channel=64, kernel_shape=4)
+            l = MaxPooling3D('pool2', l, 2)
+            l = Conv3D('conv3', l, out_channel=64, kernel_shape=3)
 
         l = FullyConnected('fc0', l, 512, nl=tf.identity)
         l = PReLU('prelu', l)
@@ -142,6 +163,7 @@ class Model(ModelDesc):
         opt = optimizer.apply_grad_processors(opt, gradprocs)
         return opt
 
+###############################################################################
 
 class MySimulatorMaster(SimulatorMaster, Callback):
     def __init__(self, pipe_c2s, pipe_s2c, model, gpus):
@@ -205,6 +227,7 @@ class MySimulatorMaster(SimulatorMaster, Callback):
         else:
             client.memory = []
 
+###############################################################################
 
 def get_config():
     nr_gpu = get_nr_gpu()
@@ -258,6 +281,7 @@ def get_config():
         tower=train_tower
     )
 
+###############################################################################
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -272,7 +296,8 @@ if __name__ == '__main__':
 
     ENV_NAME = args.env
     logger.info("Environment Name: {}".format(ENV_NAME))
-    NUM_ACTIONS = get_player().get_action_space().num_actions()
+    # NUM_ACTIONS = get_player().get_action_space().num_actions()
+    NUM_ACTIONS = MedicalPlayer(directory=TRAIN_DIR,screen_dims=IMAGE_SIZE).get_action_space().num_actions()
     logger.info("Number of actions: {}".format(NUM_ACTIONS))
 
     if args.gpu:
@@ -303,3 +328,5 @@ if __name__ == '__main__':
             config.session_init = get_model_loader(args.load)
         trainer = QueueInputTrainer if config.nr_tower == 1 else AsyncMultiGPUTrainer
         trainer(config).train()
+
+
