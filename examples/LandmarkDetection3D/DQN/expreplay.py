@@ -13,6 +13,7 @@ from collections import deque, namedtuple
 
 from tensorpack.utils import logger
 from tensorpack.dataflow import DataFlow
+from tensorpack.utils.stats import StatCounter
 from tensorpack.callbacks.base import Callback
 from tensorpack.utils.utils import get_tqdm, get_rng
 from tensorpack.utils.concurrency import LoopThread, ShareSessionThread
@@ -151,7 +152,7 @@ class ExpReplay(DataFlow, Callback):
             if k != 'self':
                 setattr(self, k, v)
         self.exploration = init_exploration
-        self.num_actions = player.get_action_space().num_actions()
+        self.num_actions = player.action_space.n
         logger.info("Number of Legal actions: {}".format(self.num_actions))
 
         self.rng = get_rng(self)
@@ -161,6 +162,9 @@ class ExpReplay(DataFlow, Callback):
         self._populate_job_queue = queue.Queue(maxsize=5)
 
         self.mem = ReplayMemory(memory_size, state_shape, history_len)
+        self._current_ob = self.player.reset()
+        self._player_scores = StatCounter()
+        self._player_distError = StatCounter()
 
     def get_simulator_thread(self):
         # spawn a separate thread to run policy
@@ -195,7 +199,7 @@ class ExpReplay(DataFlow, Callback):
 
     def _populate_exp(self):
         """ populate a transition by epsilon-greedy"""
-        old_s = self.player.current_state()
+        old_s = self._current_ob
         if self.rng.rand() <= self.exploration or (len(self.mem) <= self.history_len):
             act = self.rng.choice(range(self.num_actions))
         else:
@@ -204,13 +208,24 @@ class ExpReplay(DataFlow, Callback):
             history.append(old_s)
             if (np.ndim(history)==4): # 3d states
                 history = np.stack(history, axis=3)
+                # assume batched network - this is the bottleneck
+                q_values = self.predictor(history[None, :, :, :, :])[0][0]
             else:
                 history = np.stack(history, axis=2)
+                # assume batched network - this is the bottleneck
+                q_values = self.predictor(history[None, :, :, :])[0][0]
 
-            # assume batched network
-            q_values = self.predictor([[history]])[0][0]  # this is the bottleneck
             act = np.argmax(q_values)
-        reward, isOver = self.player.action(act)
+
+        self._current_ob, reward, isOver, info = self.player.step(act)
+
+        if isOver:
+            # if info['gameOver']:  # only record score when a whole game is over (not when an episode is over)
+            #     self._player_scores.feed(info['score'])
+            self._player_scores.feed(info['score'])
+            self._player_distError.feed(info['distError'])
+            self.player.reset()
+
         self.mem.append(Experience(old_s, act, reward, isOver))
 
     def _debug_sample(self, sample):
@@ -257,16 +272,21 @@ class ExpReplay(DataFlow, Callback):
         self._simulator_th = self.get_simulator_thread()
         self._simulator_th.start()
 
-    def _trigger_epoch(self):
+    def _trigger(self):
         # log player statistics in training
-        stats = self.player.stats
-        for k, v in six.iteritems(stats):
-            try:
-                mean, max = np.mean(v), np.max(v)
-                self.trainer.monitors.put_scalar('expreplay/mean_' + k, mean)
-                self.trainer.monitors.put_scalar('expreplay/max_' + k, max)
-            except:
-                logger.exception("Cannot log training scores.")
+        v = self._player_scores
+        dist = self._player_distError
+        try:
+            mean, max = v.average, v.max
+            self.trainer.monitors.put_scalar('expreplay/mean_score', mean)
+            self.trainer.monitors.put_scalar('expreplay/max_score', max)
+            mean, max = dist.average, dist.max
+            self.trainer.monitors.put_scalar('expreplay/mean_dist', mean)
+            self.trainer.monitors.put_scalar('expreplay/max_dist', max)
+        except Exception:
+            logger.exception("Cannot log training scores.")
+        v.reset()
+        dist.reset()
 
         # monitor number of played games and successes of reaching the target
         if self.player.num_games.count:
@@ -283,7 +303,6 @@ class ExpReplay(DataFlow, Callback):
         else:
             self.trainer.monitors.put_scalar('n_success', 0)
             self.trainer.monitors.put_scalar('n_success_ratio',0)
-
         # reset stats
         self.player.reset_stat()
 
@@ -297,7 +316,7 @@ if __name__ == '__main__':
     player = AtariPlayer(sys.argv[1], viz=0, frame_skip=10, height_range=(36, 204))
     E = ExpReplay(predictor,
                   player=player,
-                  num_actions=player.get_action_space().num_actions(),
+                  num_actions=player.action_space.n,
                   populate_size=1001,
                   history_len=4)
     E._init_memory()

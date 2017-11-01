@@ -8,7 +8,7 @@ import SimpleITK as sitk
 from tensorpack import logger
 
 
-__all__ = ['trainFiles', 'trainFiles_cardio', 'NiftiImage']
+__all__ = ['trainFiles', 'trainFiles_cardio', 'trainFiles_fetal_US','NiftiImage']
 
 #######################################################################
 ## list file/directory names
@@ -160,6 +160,7 @@ class trainFiles(object):
     #     label_image = NiftiImage().decode_nifti(self.label_file)
     #     return np.round(center_of_mass(label_image.data))
 
+###############################################################################
 
 class trainFiles_cardio(trainFiles):
     """ A class for managing train files for Ozan mri cardio data
@@ -213,7 +214,58 @@ class trainFiles_cardio(trainFiles):
                 yield image, landmark, image_filename
 
 
+###############################################################################
 
+class trainFiles_fetal_US(trainFiles):
+    """ A class for managing train files for Ozan mri cardio data
+
+        Attributes:
+        directory: input data directo
+    """
+
+    def _listImages(self):
+        # extend directory path
+        current_dir = self.dir + '/images'
+        childDirs = listFiles(current_dir,'*.nii.gz')
+        image_files = []
+
+        for child in childDirs:
+            file_name = os.path.join(current_dir, child)
+            file_path = os.path.join(current_dir, file_name)
+            image_files.append(file_path)
+
+        return image_files
+
+
+    def _listLandmarks(self):
+        # extend directory path
+        current_dir = self.dir + '/landmarks'
+        childDirs = listFiles(current_dir,'*.txt')
+        landmarks = []
+
+        for child in childDirs:
+            file_name = os.path.join(current_dir, child)
+            file_path = os.path.join(current_dir, file_name)
+            points = np.array(extractPointsTXT(file_path))
+            landmark = np.array(points[:,12]) # landmark point 12
+            landmarks.append(landmark)
+
+        return landmarks
+
+    def sample_circular(self,shuffle=False):
+        """ return a random sampled ImageRecord from the list of files
+        """
+        if shuffle:
+            indexes = rng.choice(x,len(x),replace=False)
+        else:
+            indexes = np.arange(self.num_files)
+
+        while True:
+            for idx in indexes:
+                sitk_image, image = NiftiImage().decode(self.images_list[idx])
+                landmark = self.landmarks_list[idx]
+                image_filename = self.images_list[idx]
+                yield image, landmark, image_filename
 
 # ===================================================================
 # ====================== Nifti Image Class ==========================

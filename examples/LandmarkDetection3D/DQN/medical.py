@@ -9,14 +9,16 @@ import random
 import threading
 import numpy as np
 from tensorpack import logger
-from collections import (Counter, defaultdict)
+from collections import (Counter, defaultdict, deque)
 
 import cv2
 import math
 import time
 from PIL import Image
 
+import gym
 from gym import spaces
+
 # from gym.envs.classic_control import rendering
 try:
     import pyglet
@@ -26,15 +28,15 @@ except ImportError as e:
 
 from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
-from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
+# from tensorpack.RL.envbase import DiscreteActionSpace, RLEnvironment
 
 
 
-from sampleTrain import trainFiles, trainFiles_cardio
-from viewer import SimpleImageViewer
+# from viewer import SimpleImageViewer
+from sampleTrain import *
 
 
-__all__ = ['MedicalPlayer']
+__all__ = ['MedicalPlayer','FrameStack']
 
 _ALE_LOCK = threading.Lock()
 
@@ -42,13 +44,15 @@ _ALE_LOCK = threading.Lock()
 # =================== 3d medical environment ========================
 # ===================================================================
 
-class MedicalPlayer(RLEnvironment):
+class MedicalPlayer(gym.Env):
     """Class that provides 3D medical image environment.
     This is just an implementation of the classic "agent-environment loop".
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=False, screen_dims=(27,27,27), nullop_start=30,location_history_length=16, save_gif=False):
+    def __init__(self, directory=None, viz=False, train=False,
+                 screen_dims=(27,27,27), location_history_length=16,
+                 max_num_frames=0, save_gif=False):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -60,23 +64,38 @@ class MedicalPlayer(RLEnvironment):
         :param nullop_start: start with random number of null ops
         :param location_history_length: consider lost of lives as end of
             episode (useful for training)
+        :max_num_frames: maximum number of frames per episode.
         """
         super(MedicalPlayer, self).__init__()
 
-        # needed for the medical environment
+        self.reset_stat()
+
+        # counter to limit number of steps per episodes
+        self.cnt = 0
+        # maximum number of frames (steps) per episodes
+        self.max_num_frames = max_num_frames
+        # stores information: terminal, score, distError
         self.info = None
-        self.width, self.height, self.depth = screen_dims
-        self._loc_history_length = location_history_length
+        # option to save display as gif
         self.save_gif = save_gif
+        # training flag
+        self.train = train
+        # image dimension (2D/3D)
+        self.screen_dims = screen_dims
+        self.dims = len(self.screen_dims)
+        # history buffer for storing last locations to check oscilations
+        self._loc_history_length = location_history_length
+        self._loc_history = [(0,) * self.dims] * self._loc_history_length
+        if self.dims == 2:
+            self.width, self.height = screen_dims
+        else:
+            self.width, self.height, self.depth = screen_dims
 
         with _ALE_LOCK:
             self.rng = get_rng(self)
             # visualization setup
             if isinstance(viz, six.string_types):   # check if viz is a string
                 assert os.path.isdir(viz), viz
-                # todo implement save states to images -> save gif
-                # self.env.env.ale.setString(b'record_screen_dir', viz)
-                # rgb_image = self.env.render('rgb_array')
                 viz = 0
             if isinstance(viz, int):
                 viz = float(viz)
@@ -85,69 +104,86 @@ class MedicalPlayer(RLEnvironment):
                 self.viewer = None
                 self.gif_buffer = []
 
-        # circular buffer to store history
-        self._loc_history = list([(0,0,0)]) * self._loc_history_length
-
-        self.screen_dims = screen_dims
-        self.nullop_start = nullop_start
-
+        # stat counter to store current score or accumlated reward
         self.current_episode_score = StatCounter()
-        self.actions = self.getMinimalActionSet()
 
+        # get action space and minimal action set
+        self.action_space = spaces.Discrete(6) # change number actions here
+        self.actions = self.action_space.n
+        self.observation_space = spaces.Box(low=0, high=255,
+                                            shape=self.screen_dims)
+
+        # add your data loader here
+        # self.train_files = trainFiles_fetal_US(directory)
         self.train_files = trainFiles_cardio(directory)
         # self.train_files = trainFiles(directory)
-        self.filepath = None
 
+        # prepare file sampler
+        self.filepath = None
         self.sampled_files = self.train_files.sample_circular()
 
-        self.restart_episode()
+        # restart episode
+        self._restart_episode()
 
-    def restart_episode(self):
-        # reset the stat counter
-        self.current_episode_score.reset()
-        self.num_games.feed(1)
+    def _reset(self):
         # with _ALE_LOCK:
-        self.reset_game()
-        # # random null-ops start by performing random number of dummy actions at the beginning of each episode
-        # n = self.rng.randint(self.nullop_start)
-        # self.last_raw_screen = self.get_screen()
-        # for k in range(n):
-        #     if k == n-1:
-        #         self.last_raw_screen = self.get_screen()
-        #     self.action(0)
+        self._restart_episode()
+        return self._current_state()
 
-    def reset_game(self):
+    def _restart_episode(self):
         """
-        reset location history buffer
+        restart current episoide
         """
-        self.new_random_game()
-        self._loc_history = list([(0,0,0)]) * self._loc_history_length
         self.terminal = False
-        # return self.get_screen(location)
+        self.num_games.feed(1)
+        self.current_episode_score.reset()  # reset the stat counter
+        self._loc_history = list([(0,0,0)]) * self._loc_history_length
+        self.new_random_game()
 
     def new_random_game(self):
         # print('\n============== new game ===============\n')
         self.terminal = False
         self.viewer = None
         # sample a new image
-        self._game_img, self._target_loc, self.filepath = next(self.sampled_files)# self.train_files.sample()
+        self._image, self._target_loc, self.filepath = next(self.sampled_files)# self.train_files.sample()
         self.filename = os.path.basename(self.filepath)
 
-        # image volume size
-        self._image_dims = self._game_img.dims
-        self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._image_dims[0]-self.screen_dims[0]-1, self._image_dims[1]-self.screen_dims[1]-1, self._image_dims[2]-self.screen_dims[2]-1))
 
-        x = self.rng.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
-        y = self.rng.randint(self._loc_dims[1]+1, self._loc_dims[4]-1)
-        z = self.rng.randint(self._loc_dims[2]+1, self._loc_dims[5]-1)
+        # image volume size
+        self._image_dims = self._image.dims
+
+        # logger.info("filepath {} - image dims {} - target_loc {} ".format(self.filepath, self._image.dims, self._target_loc))
+
+        # self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._image_dims[0]-self.screen_dims[0]-1, self._image_dims[1]-self.screen_dims[1]-1, self._image_dims[2]-self.screen_dims[2]-1))
+
+        # x = self.rng.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
+        # y = self.rng.randint(self._loc_dims[1]+1, self._loc_dims[4]-1)
+        # z = self.rng.randint(self._loc_dims[2]+1, self._loc_dims[5]-1)
+
+        # for random point selection - skip border thickness
+        if self.train:
+            skip_thickness = ((int)(self._image_dims[0]/4),
+                              (int)(self._image_dims[1]/4),
+                              (int)(self._image_dims[2]/4))
+        else:
+            skip_thickness = ((int)(self._image_dims[0]/3),
+                              (int)(self._image_dims[1]/3),
+                              (int)(self._image_dims[2]/3))
+
+        x = self.rng.randint(0+skip_thickness[0],
+                             self._image_dims[0]-skip_thickness[0])
+        y = self.rng.randint(0+skip_thickness[1],
+                             self._image_dims[1]-skip_thickness[1])
+        z = self.rng.randint(0+skip_thickness[2],
+                             self._image_dims[2]-skip_thickness[2])
 
         self._location = (x,y,z)
         self._start_location = (x,y,z)
-        self._screen = self.get_screen()
+        self._screen = self._current_state()
 
         self.cur_dist = np.linalg.norm(self._location - self._target_loc)
 
-    def action(self, act):
+    def _step(self, act):
         """The environment's step function returns exactly what we need.
         Args:
           action:
@@ -164,8 +200,6 @@ class MedicalPlayer(RLEnvironment):
         current_loc = self._location
         self.terminal = False
         go_out = False
-
-        act = self.actions[act]
 
         # UP Z+
         if (act==0):
@@ -218,54 +252,50 @@ class MedicalPlayer(RLEnvironment):
         # punish -1 reward if the agent tries to go out
         if go_out:
             self.reward = -1
-            # self.terminal = True # end episode and restart
+            # self.terminal = True # end episode and reset
         else:
             self.reward = self._calc_reward(current_loc, next_location)
 
         # update screen, reward ,location, terminal
         self._location = next_location
-        self._screen = self.get_screen()
+        self._screen = self._current_state()
         self.cur_dist = np.linalg.norm(self._location - self._target_loc)
 
-        if (np.array(self._location)==np.array(self._target_loc)).all():
-        # if self.cur_dist<1:
-            self.terminal = True
-            self.num_success.feed(1)
-
-        # if self._oscillate:
-        #     if (self._location==self._target_loc).any():
-        #         self.terminal = True
-        #         logger.info('Found target at current location = {} - target location = {} - reward = {} - terminal = {}'.format(self._location, self._target_loc, self.reward, self.terminal))
-        #     else:
-        #         self.terminal = False
-        #         logger.info('Stuck at current location = {} - target location = {} - reward = {} - terminal = {}'.format(self._location, self._target_loc, self.reward, self.terminal))
-
-        # check if agent oscillates
+        # add new location to history buffer for oscillations
         self._add_loc(next_location)
-        if self._oscillate: self.terminal = True
 
+        # logger.info('current distance = {}'.format(self.cur_dist))
+        if self.train:
+            # if (np.array(self._location)==np.array(self._target_loc)).all():
+            if self.cur_dist<1:
+                self.terminal = True
+                self.num_success.feed(1)
+        else:
+            # check if agent oscillates
+            if self._oscillate:
+                self.terminal = True
+                if self.cur_dist<1: self.num_success.feed(1)
 
-        if self.terminal:
-            # logger.info('reward {}, terminal {}, screen '.format(self.reward, self.terminal, self.get_screen()))
-            with _ALE_LOCK:
-                if self.viz:
-                    if isinstance(self.viz, float):
-                        self._render()
-            self.finish_episode()
-            self.restart_episode()
-
-        return (self.reward, self.terminal)
-
-    def current_state(self):
-        """
-        :returns: a gray-scale (h, w, d) float ###uint8 image
-        """
-        screen = self.get_screen() # get the current 3d screen
+        # render screen if viz is on
         with _ALE_LOCK:
             if self.viz:
                 if isinstance(self.viz, float):
-                    self._render()
-        return screen
+                    self.display()
+
+        self.cnt += 1
+        if self.cnt >= self.max_num_frames:
+            self.terminal = True
+            self.cnt = 0
+
+        distance_error = self.cur_dist
+        self.current_episode_score.feed(self.reward)
+
+        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error}
+
+        # this done in exp replay
+        # if self.terminal:   self.reset()
+
+        return self._current_state(), self.reward, self.terminal, info
 
 
     def _add_loc(self, location):
@@ -275,7 +305,7 @@ class MedicalPlayer(RLEnvironment):
         self._loc_history[-1] = location
 
 
-    def get_screen(self):
+    def _current_state(self):
         # initialize screen with zeros - all background
         screen = np.zeros((self.screen_dims))
         screen_xmin, screen_ymin, screen_zmin = 0, 0 ,0
@@ -316,12 +346,12 @@ class MedicalPlayer(RLEnvironment):
         # logger.info('after screen xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(screen_xmin,screen_xmax,screen_ymin,screen_ymax,screen_zmin,screen_zmax))
 
         # update current screen
-        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._game_img.data[xmin:xmax, ymin:ymax, zmin:zmax]
+        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[xmin:xmax, ymin:ymax, zmin:zmax]
 
         return screen
 
     def get_plane(self,z=0):
-        return self._game_img.data[:, :, z]
+        return self._image.data[:, :, z]
 
 
     def _calc_reward(self, current_loc, next_loc):
@@ -343,8 +373,9 @@ class MedicalPlayer(RLEnvironment):
         elif (freq[0][1]>3):
             return True
 
-    def get_action_space(self):
-        ''' return array of integers for actions
+
+    def get_action_meanings(self):
+        ''' return array of integers for actions'''
         ACTION_MEANING = {
             1 : "UP",       # MOVE Z+
             2 : "FORWARD",  # MOVE Y+
@@ -353,19 +384,7 @@ class MedicalPlayer(RLEnvironment):
             5 : "BACKWARD", # MOVE Y-
             6 : "DOWN",     # MOVE Z-
         }
-        '''
-        return DiscreteActionSpace(len(self.actions))
-
-    # @property
-    def get_num_actions(self):
-        action_space = spaces.Discrete(6)
-        return action_space.n
-
-    def getMinimalActionSet(self):
-        """
-        Returns a list of the minimal actions set to be used.
-        """
-        return list(range(0,self.get_num_actions()))
+        return [ACTION_MEANING[i] for i in self.actions]
 
     @property
     def getScreenDims(self):
@@ -383,62 +402,117 @@ class MedicalPlayer(RLEnvironment):
         self.num_games = StatCounter()
         self.num_success = StatCounter()
 
-    def finish_episode(self):
-        self.current_episode_score.feed(self.cur_dist)
-        # if self.current_episode_score.count:
-        self.stats['score'].append(self.current_episode_score.sum)
+    def display(self, return_rgb_array=False):
+        pass
+        # # get dimensions
+        # current_point = self._location
+        # target_point = self._target_loc
+        # # get image and convert it to pyglet
+        # plane = self.get_plane(current_point[2])# z-plane
+        # img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
+        # # skip if there is a viewer open
+        # if self.viewer is None:
+        #     self.viewer = SimpleImageViewer(arr=img,
+        #                                     scale_x=2,
+        #                                     scale_y=2,
+        #                                     filepath=self.filename)
+        #     self.gif_buffer = []
+        # # display image
+        # self.viewer.draw_image(img)
+        # # draw a transparent circle around target point with variable radius
+        # # based on the difference z-direction
+        # diff_z = abs(current_point[2]-target_point[2])
+        # self.viewer.draw_circle(radius=diff_z,
+        #                         pos_x=target_point[0],
+        #                         pos_y=target_point[1],
+        #                         color=(1.0,0.0,0.0,0.2))
+        # # draw target point
+        # self.viewer.draw_circle(radius=1,
+        #                         pos_x=target_point[0],
+        #                         pos_y=target_point[1],
+        #                         color=(1.0,0.0,0.0,1.0))
+        # # draw current point
+        # self.viewer.draw_circle(radius=1,
+        #                         pos_x=current_point[0],
+        #                         pos_y=current_point[1],
+        #                         color=(0.0,0.0,1.0,1.0))
+
+        # # render and wait (viz) time between frames
+        # self.viewer.render()
+        # # time.sleep(self.viz)
+        # # save gif
+        # if self.save_gif:
+        #     image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
+        #     data = image_data.get_data('RGB', image_data.width * 3)
+        #     arr = np.array([int(string_i) for string_i in data])
+        #     arr = np.reshape(arr,(image_data.height, image_data.width, -1))
+        #     #.transpose(1,0,2)
+        #     im = Image.fromarray(arr.astype('uint8'))
+        #     self.gif_buffer.append(im)
+
+        #     if self.terminal:
+        #         gifname = self.filename.split('.')[0] + '.gif'
+        #         self.viewer.savegif(gifname,arr=self.gif_buffer, duration=self.viz)
 
 
-    def _render(self, return_rgb_array=False):
-        # get dimensions
-        current_point = self._location
-        target_point = self._target_loc
-        # get image and convert it to pyglet
-        plane = self.get_plane(current_point[2])# z-plane
-        img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
-        # skip if there is a viewer open
-        if self.viewer is None:
-            self.viewer = SimpleImageViewer(arr=img,
-                                            scale_x=2,
-                                            scale_y=2,
-                                            filepath=self.filename)
-            self.gif_buffer = []
-        # display image
-        self.viewer.draw_image(img)
-        # draw a transparent circle around target point with variable radius
-        # based on the difference z-direction
-        diff_z = abs(current_point[2]-target_point[2])
-        self.viewer.draw_circle(radius=diff_z,
-                                pos_x=target_point[0],
-                                pos_y=target_point[1],
-                                color=(1.0,0.0,0.0,0.2))
-        # draw target point
-        self.viewer.draw_circle(radius=1,
-                                pos_x=target_point[0],
-                                pos_y=target_point[1],
-                                color=(1.0,0.0,0.0,1.0))
-        # draw current point
-        self.viewer.draw_circle(radius=1,
-                                pos_x=current_point[0],
-                                pos_y=current_point[1],
-                                color=(0.0,0.0,1.0,1.0))
 
-        # render and wait (viz) time between frames
-        self.viewer.render()
-        # time.sleep(self.viz)
-        # save gif
-        if self.save_gif:
-            image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
-            data = image_data.get_data('RGB', image_data.width * 3)
-            arr = np.array([int(string_i) for string_i in data])
-            arr = np.reshape(arr,(image_data.height, image_data.width, -1))
-            #.transpose(1,0,2)
-            im = Image.fromarray(arr.astype('uint8'))
-            self.gif_buffer.append(im)
+class DiscreteActionSpace(object):
 
-            if self.terminal:
-                gifname = self.filename.split('.')[0] + '.gif'
-                self.viewer.savegif(gifname,arr=self.gif_buffer, duration=self.viz)
+    def __init__(self, num):
+        super(DiscreteActionSpace, self).__init__()
+        self.num = num
+        self.rng = get_rng(self)
+
+    def sample(self):
+        return self.rng.randint(self.num)
+
+    def num_actions(self):
+        return self.num
+
+    def __repr__(self):
+        return "DiscreteActionSpace({})".format(self.num)
+
+    def __str__(self):
+        return "DiscreteActionSpace({})".format(self.num)
+
+
+# =============================================================================
+# ================================ FrameStack =================================
+# =============================================================================
+class FrameStack(gym.Wrapper):
+    def __init__(self, env, k):
+        """Buffer observations and stack across channels (last axis)."""
+        gym.Wrapper.__init__(self, env)
+        self.k = k # history length
+        self.frames = deque([], maxlen=k)
+        shp = env.observation_space.shape
+        # chan = 1 if len(shp) == 2 else shp[2]
+        self._base_dim = len(shp)
+        new_shape = shp + (k,)
+        # self.observation_space = spaces.Box(low=0, high=255, shape=(shp[0], shp[1], chan * k))
+        self.observation_space = spaces.Box(low=0, high=255, shape=new_shape)
+
+    def _reset(self):
+        """Clear buffer and re-fill by duplicating the first observation."""
+        ob = self.env.reset()
+        for _ in range(self.k - 1):
+            self.frames.append(np.zeros_like(ob))
+        self.frames.append(ob)
+        return self._observation()
+
+    def _step(self, action):
+        ob, reward, done, info = self.env.step(action)
+        self.frames.append(ob)
+        return self._observation(), reward, done, info
+
+    def _observation(self):
+        assert len(self.frames) == self.k
+        return np.stack(self.frames, axis=-1)
+        # if self._base_dim == 2:
+        #     return np.stack(self.frames, axis=-1)
+        # else:
+        #     return np.concatenate(self.frames, axis=2)
+
 
 # =============================================================================
 # ================================== notes ====================================
