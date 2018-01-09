@@ -8,7 +8,8 @@ import SimpleITK as sitk
 from tensorpack import logger
 
 
-__all__ = ['trainFiles', 'trainFiles_cardio', 'trainFiles_fetal_US','NiftiImage']
+__all__ = ['trainFiles', 'trainFiles_cardio', 'trainFiles_fetal_US',
+           'trainFiles_cardio_plane', 'NiftiImage']
 
 #######################################################################
 ## list file/directory names
@@ -177,7 +178,65 @@ class trainFiles(object):
     #     '''
     #     label_image = NiftiImage().decode_nifti(self.label_file)
     #     return np.round(center_of_mass(label_image.data))
+###############################################################################
 
+class trainFiles_cardio_plane(object):
+    """ A class for managing train files for Ozan mri cardio data
+
+        Attributes:
+        directory: input data directory
+    """
+
+    def __init__(self, directory=None):
+
+        assert directory, 'There is no directory containing training files given'
+
+        self.dir = directory
+
+        # todo make it generic for directories and files with different scenarios
+        self.images_3d_list = self._listImages('/3DLV_1mm_iso/')
+        self.images_2ch_list = self._listImages('/2CH_rreg/')
+        self.images_4ch_list = self._listImages('/4CH_rreg/')
+
+    def _listImages(self,suffix):
+        # extend directory path
+        current_dir = self.dir + suffix
+        childDirs = listFiles(current_dir,'*.nii.gz')
+        image_files = []
+
+        for child in childDirs:
+            file_name = os.path.join(current_dir, child)
+            file_path = os.path.join(current_dir, file_name)
+            image_files.append(file_path)
+
+        return image_files
+
+
+    def sample_circular(self,shuffle=False):
+        """ return a random sampled ImageRecord from the list of files
+        """
+        if shuffle:
+            indexes = rng.choice(x,len(x),replace=False)
+        else:
+            indexes = np.arange(self.num_files)
+
+        while True:
+            for idx in indexes:
+                # print('============================================')
+                # print('images_3d_list[idx] {} \nimages_2ch_list[idx] {} \nimages_4ch_list[idx] {}'.format(self.images_3d_list[idx].split('/')[-1],self.images_2ch_list[idx].split('/')[-1],self.images_4ch_list[idx].split('/')[-1]))
+
+                sitk_image3d, _ =NiftiImage().decode(self.images_3d_list[idx])
+                sitk_image2ch, _=NiftiImage().decode(self.images_2ch_list[idx])
+                sitk_image4ch, _=NiftiImage().decode(self.images_4ch_list[idx])
+                image_filename = self.images_3d_list[idx]
+
+                yield sitk_image3d, sitk_image2ch, sitk_image4ch, image_filename
+
+    @property
+    def num_files(self):
+        return len(self.images_3d_list)
+
+###############################################################################
 ###############################################################################
 
 class trainFiles_cardio(trainFiles):
@@ -370,22 +429,21 @@ class NiftiImage(object):
             sitk_image = sitk.ReadImage(image.name, sitk.sitkInt8)
         else:
             sitk_image = sitk.ReadImage(image.name, sitk.sitkFloat32)
-            # np_image = sitk.GetArrayFromImage(sitk_image)
-            # # threshold image between p10 and p98 then re-scale [0-255]
-            # p0 = np_image.min().astype('float')
-            # p10 = np.percentile(np_image,10)
-            # p98 = np.percentile(np_image,98)
-            # p100 = np_image.max().astype('float')
-            # # logger.info('p0 {} , p5 {} , p10 {} , p90 {} , p98 {} , p100 {}'.format(p0,p5,p10,p90,p98,p100))
-            # sitk_image = sitk.Threshold(sitk_image,
-            #                             lower=p10,
-            #                             upper=p100,
-            #                             outsideValue=p10)
-            # sitk_image = sitk.Threshold(sitk_image,
-            #                             lower=p0,
-            #                             upper=p98,
-            #                             outsideValue=p98)
-            # np_image = sitk.GetArrayFromImage(sitk_image)
+            np_image = sitk.GetArrayFromImage(sitk_image)
+            # threshold image between p10 and p98 then re-scale [0-255]
+            p0 = np_image.min().astype('float')
+            p10 = np.percentile(np_image,10)
+            p98 = np.percentile(np_image,98)
+            p100 = np_image.max().astype('float')
+            # logger.info('p0 {} , p5 {} , p10 {} , p90 {} , p98 {} , p100 {}'.format(p0,p5,p10,p90,p98,p100))
+            sitk_image = sitk.Threshold(sitk_image,
+                                        lower=p10,
+                                        upper=p100,
+                                        outsideValue=p10)
+            sitk_image = sitk.Threshold(sitk_image,
+                                        lower=p0,
+                                        upper=p98,
+                                        outsideValue=p98)
             sitk_image = sitk.RescaleIntensity(sitk_image,
                                                outputMinimum=0,
                                                outputMaximum=255)

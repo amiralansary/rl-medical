@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: medical.py
+# File: detectPlanePlayer.py
 # Author: Amir Alansary <amiralansary@gmail.com>
 
 import os
@@ -9,7 +9,7 @@ import random
 import threading
 import numpy as np
 from tensorpack import logger
-from collections import (Counter, defaultdict, deque)
+from collections import (Counter, defaultdict, deque, namedtuple)
 
 import cv2
 import math
@@ -19,7 +19,6 @@ from PIL import Image
 import gym
 from gym import spaces
 
-# from gym.envs.classic_control import rendering
 try:
     import pyglet
 except ImportError as e:
@@ -28,21 +27,29 @@ except ImportError as e:
 
 from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
-# from tensorpack.RL.envbase import DiscreteActionSpace, RLEnvironment
-
+# from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
 
 
 from viewer import SimpleImageViewer
 from sampleTrain import *
+from detectPlaneHelper import *
 
 
-__all__ = ['MedicalPlayer','FrameStack']
+__all__ = ['MedicalPlayer']
 
 _ALE_LOCK = threading.Lock()
+
+
+# plane container of its array, normal vector, origin,
+# and parameters(angles in degrees and d), selected points (e.g. corners)
+Plane = namedtuple('Plane', ['grid', 'norm', 'origin', 'params', 'points'])
 
 # ===================================================================
 # =================== 3d medical environment ========================
 # ===================================================================
+
+from IPython.core.debugger import set_trace
+# set_trace()
 
 class MedicalPlayer(gym.Env):
     """Class that provides 3D medical image environment.
@@ -51,8 +58,8 @@ class MedicalPlayer(gym.Env):
     an observation and a reward."""
 
     def __init__(self, directory=None, viz=False, train=False,
-                 screen_dims=(27,27,27), location_history_length=16,
-                 max_num_frames=0, savegif=False):
+                 screen_dims=(27,27,27), spacing=(1,1,1), nullop_start=30,
+                 history_length=16, max_num_frames=0, savegif=False):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -62,14 +69,21 @@ class MedicalPlayer(gym.Env):
         :param screen_dims: shape of the frame cropped from the image to feed
             it to dqn (d,w,h) - defaults (27,27,27)
         :param nullop_start: start with random number of null ops
-        :param location_history_length: consider lost of lives as end of
+        :param history_length: consider lost of lives as end of
             episode (useful for training)
-        :max_num_frames: maximum number of frames per episode.
         """
         super(MedicalPlayer, self).__init__()
 
         self.reset_stat()
 
+        # read files from directory - add your data loader here
+        self.train_files = trainFiles_cardio_plane(directory)
+        # self.train_files = trainFiles_fetal_US(directory)
+        # self.train_files = trainFiles_cardio(directory)
+        # self.train_files = trainFiles(directory)
+        # prepare file sampler
+        self.sampled_files = self.train_files.sample_circular()
+        self.filepath = None
         # counter to limit number of steps per episodes
         self.cnt = 0
         # maximum number of frames (steps) per episodes
@@ -82,15 +96,26 @@ class MedicalPlayer(gym.Env):
         self.train = train
         # image dimension (2D/3D)
         self.screen_dims = screen_dims
+        self._plane_size = screen_dims
         self.dims = len(self.screen_dims)
-        # history buffer for storing last locations to check oscilations
-        self._loc_history_length = location_history_length
-        self._loc_history = [(0,) * self.dims] * self._loc_history_length
         if self.dims == 2:
             self.width, self.height = screen_dims
         else:
             self.width, self.height, self.depth = screen_dims
-
+        # plane sampling spacings
+        self.spacing = spacing
+        # history buffer for storing last locations to check oscilations
+        self._history_length = history_length
+        # circular buffer to store plane parameters history [4,history_length]
+        self._params_history = list([(0,0,0,0)]) * self._history_length
+        self._dist_history = [0] * self._history_length
+        # stat counter to store current score or accumlated reward
+        self.current_episode_score = StatCounter()
+        # get action space and minimal action set
+        self.action_space = spaces.Discrete(8) # change number actions here
+        self.actions = self.action_space.n
+        self.observation_space = spaces.Box(low=0, high=255,
+                                            shape=self.screen_dims)
         with _ALE_LOCK:
             self.rng = get_rng(self)
             # visualization setup
@@ -104,26 +129,9 @@ class MedicalPlayer(gym.Env):
                 self.viewer = None
                 self.gif_buffer = []
 
-        # stat counter to store current score or accumlated reward
-        self.current_episode_score = StatCounter()
-
-        # get action space and minimal action set
-        self.action_space = spaces.Discrete(6) # change number actions here
-        self.actions = self.action_space.n
-        self.observation_space = spaces.Box(low=0, high=255,
-                                            shape=self.screen_dims)
-
-        # add your data loader here
-        self.train_files = trainFiles_fetal_US(directory)
-        # self.train_files = trainFiles_cardio(directory)
-        # self.train_files = trainFiles(directory)
-
-        # prepare file sampler
-        self.filepath = None
-        self.sampled_files = self.train_files.sample_circular()
-
-        # restart episode
         self._restart_episode()
+
+    # -------------------------------------------------------------------------
 
     def _reset(self):
         # with _ALE_LOCK:
@@ -137,51 +145,59 @@ class MedicalPlayer(gym.Env):
         self.terminal = False
         self.num_games.feed(1)
         self.current_episode_score.reset()  # reset the stat counter
-        self._loc_history = list([(0,0,0)]) * self._loc_history_length
+        self._params_history = list([(0,0,0,0)]) * self._history_length
+        self._dist_history = [0] * self._history_length
         self.new_random_game()
+
+    # -------------------------------------------------------------------------
 
     def new_random_game(self):
         # print('\n============== new game ===============\n')
         self.terminal = False
         self.viewer = None
         # sample a new image
-        self._image, self._target_loc, self.filepath = next(self.sampled_files)# self.train_files.sample()
+        self.sitk_image, self.sitk_image_2ch, self.sitk_image_4ch, self.filepath = next(self.sampled_files)
         self.filename = os.path.basename(self.filepath)
-
-
         # image volume size
-        self._image_dims = self._image.dims
+        self._image_dims = self.sitk_image.GetSize()
 
-        # logger.info("filepath {} - image dims {} - target_loc {} ".format(self.filepath, self._image.dims, self._target_loc))
-
-        # self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._image_dims[0]-self.screen_dims[0]-1, self._image_dims[1]-self.screen_dims[1]-1, self._image_dims[2]-self.screen_dims[2]-1))
-
-        # x = self.rng.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
-        # y = self.rng.randint(self._loc_dims[1]+1, self._loc_dims[4]-1)
-        # z = self.rng.randint(self._loc_dims[2]+1, self._loc_dims[5]-1)
-
-        # for random point selection - skip border thickness
+        # find center point of the initial plane
         if self.train:
-            skip_thickness = ((int)(self._image_dims[0]/4),
-                              (int)(self._image_dims[1]/4),
-                              (int)(self._image_dims[2]/4))
-        else:
-            skip_thickness = ((int)(self._image_dims[0]/3),
-                              (int)(self._image_dims[1]/3),
-                              (int)(self._image_dims[2]/3))
-
-        x = self.rng.randint(0+skip_thickness[0],
+            # sample randomly ±10% around the center point
+            skip_thickness = ((int)(self._image_dims[0]/2.5),
+                              (int)(self._image_dims[1]/2.5),
+                              (int)(self._image_dims[2]/2.5))
+            x = self.rng.randint(0+skip_thickness[0],
                              self._image_dims[0]-skip_thickness[0])
-        y = self.rng.randint(0+skip_thickness[1],
+            y = self.rng.randint(0+skip_thickness[1],
                              self._image_dims[1]-skip_thickness[1])
-        z = self.rng.randint(0+skip_thickness[2],
+            z = self.rng.randint(0+skip_thickness[2],
                              self._image_dims[2]-skip_thickness[2])
-
-        self._location = (x,y,z)
-        self._start_location = (x,y,z)
+        else:
+            # during testing start sample a plane around the center point
+            x,y,z = ((int)(self._image_dims[0]/2),
+                    (int)(self._image_dims[1]/2),
+                    (int)(self._image_dims[2]/2))
+        self._origin3d_point = (x,y,z)
+        # Get ground truth plane
+        self._groundTruth_plane = Plane(*getGroundTruthPlane(
+                                            self.sitk_image,
+                                            self.sitk_image_4ch,
+                                            self._origin3d_point,
+                                            self._plane_size,
+                                            spacing=self.spacing))
+        # Get initial plane and set current plane the same
+        self._plane = self._init_plane = Plane(*getInitialPlane(
+                                            sitk_image3d=self.sitk_image,
+                                            plane_size=self._plane_size,
+                                            origin_point=self._origin3d_point,
+                                            spacing=self.spacing))
+        # calculate current distance between initial and ground truth planes
+        self.cur_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
+                                             self._init_plane.points)
         self._screen = self._current_state()
 
-        self.cur_dist = np.linalg.norm(self._location - self._target_loc)
+    # -------------------------------------------------------------------------
 
     def _step(self, act):
         """The environment's step function returns exactly what we need.
@@ -197,84 +213,65 @@ class MedicalPlayer(gym.Env):
           info (dict):
             diagnostic information useful for debugging. It can sometimes be useful for learning (for example, it might contain the raw probabilities behind the environment's last state change). However, official evaluations of your agent are not allowed to use this for learning.
         """
-        current_loc = self._location
         self.terminal = False
-        go_out = False
+        # get current plane params
+        current_plane_params = self._plane.params
+        next_plane_params = current_plane_params.copy()
+        # ---------------------------------------------------------------------
+        # theta x+ (param a)
+        if (act==0): next_plane_params[0] += 1
+        # theta y+ (param b)
+        if (act==1): next_plane_params[1] += 1
+        # theta z+ (param c)
+        if (act==2): next_plane_params[2] += 1
+        # dist d+
+        if (act==3): next_plane_params[3] += 1
 
-        # UP Z+
-        if (act==0):
-            next_location = (current_loc[0],current_loc[1],current_loc[2]+1)
-            if (next_location[2]>=self._image_dims[2]):
-                # print(' trying to go out the image Z+ ',)
-                next_location = current_loc
-                go_out = True
-
-        # FORWARD Y+
-        if (act==1):
-            next_location = (current_loc[0],current_loc[1]+1,current_loc[2])
-            if (next_location[1]>=self._image_dims[1]):
-                # print(' trying to go out the image Y+ ',)
-                next_location = current_loc
-                go_out = True
-
-        # RIGHT X+
-        if (act==2):
-            next_location = (current_loc[0]+1,current_loc[1],current_loc[2])
-            if (next_location[0]>=self._image_dims[0]):
-                # print(' trying to go out the image X+ ',)
-                next_location = current_loc
-                go_out = True
-
-        # LEFT X-
-        if (act==3):
-            next_location = (current_loc[0]-1,current_loc[1],current_loc[2])
-            if (next_location[0]<=0):
-                # print(' trying to go out the image X- ',)
-                next_location = current_loc
-                go_out = True
-
-        # BACKWARD Y-
-        if (act==4):
-            next_location = (current_loc[0],current_loc[1]-1,current_loc[2])
-            if (next_location[1]<=0):
-                # print(' trying to go out the image Y- ',)
-                next_location = current_loc
-                go_out = True
-
-        # DOWN Z-
-        if (act==5):
-            next_location = (current_loc[0],current_loc[1],current_loc[2]-1)
-            if (next_location[2]<=0):
-                # print(' trying to go out the image Z- ',)
-                next_location = current_loc
-                go_out = True
-
-        # punish -1 reward if the agent tries to go out
+        # theta x- (param a)
+        if (act==4): next_plane_params[0] -= 1
+        # theta y- (param b)
+        if (act==5): next_plane_params[1] -= 1
+        # theta z- (param c)
+        if (act==6): next_plane_params[2] -= 1
+        # dist d-
+        if (act==7): next_plane_params[3] -= 1
+        # ---------------------------------------------------------------------
+        # get the new plane using new params result from taking the action
+        new_plane = Plane(*getPlane(self.sitk_image,
+                                    self._origin3d_point,
+                                    next_plane_params,
+                                    self._plane_size,
+                                    spacing=self.spacing))
+        # check if the screen is not full of zeros (background)
+        go_out = checkBackgroundRatio(new_plane, min_pixel_val=0.5, ratio=0.8)
+        # also check if go out (sampling from outside the volume)
+        # by checking if the new origin
+        if not go_out:
+            go_out = checkOriginLocation(self.sitk_image,new_plane.origin)
+        # punish -1 reward if the agent tries to go out and keep same plane
         if go_out:
             self.reward = -1
-            # self.terminal = True # end episode and reset
+            new_plane = self._plane
+            # self.terminal = True # end episode and restart
         else:
-            self.reward = self._calc_reward(current_loc, next_location)
+            self.reward = self._calc_reward(self._plane.points, new_plane.points)
 
         # update screen, reward ,location, terminal
-        self._location = next_location
+        self._plane = new_plane
         self._screen = self._current_state()
-        self.cur_dist = np.linalg.norm(self._location - self._target_loc)
-
-        # add new location to history buffer for oscillations
-        self._add_loc(next_location)
-
-        # logger.info('current distance = {}'.format(self.cur_dist))
+        self.cur_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
+                                             self._plane.points)
+        # store results in memory
+        self._update_history()
+        # termination conditon for train/test
         if self.train:
-            # if (np.array(self._location)==np.array(self._target_loc)).all():
-            if self.cur_dist<1:
+            if self.cur_dist<0.2:
                 self.terminal = True
                 self.num_success.feed(1)
         else:
             # check if agent oscillates
-            if self._oscillate:
-                self.terminal = True
-                if self.cur_dist<1: self.num_success.feed(1)
+            if self._oscillate: self.terminal = True
+            if self.cur_dist<1: self.num_success.feed(1)
 
         # render screen if viz is on
         with _ALE_LOCK:
@@ -297,92 +294,57 @@ class MedicalPlayer(gym.Env):
 
         return self._current_state(), self.reward, self.terminal, info
 
-
-    def _add_loc(self, location):
-        ''' Add new location points to the location history buffer
-        '''
-        self._loc_history[:-1] = self._loc_history[1:]
-        self._loc_history[-1] = location
-
+    # -------------------------------------------------------------------------
 
     def _current_state(self):
-        # initialize screen with zeros - all background
-        screen = np.zeros((self.screen_dims))
-        screen_xmin, screen_ymin, screen_zmin = 0, 0 ,0
-        screen_xmax, screen_ymax, screen_zmax = self.screen_dims
-        # extract boundary locations
-        xmin = self._location[0] - int(self.width/2) - 1
-        xmax = self._location[0] + int(self.width/2)
-        ymin = self._location[1] - int(self.height/2) - 1
-        ymax = self._location[1] + int(self.height/2)
-        zmin = self._location[2] - int(self.depth/2) - 1
-        zmax = self._location[2] + int(self.depth/2)
+        """
+        :returns: a gray-scale (h, w, d) float ###uint8 image
+        """
+        return self._plane.grid
 
-        # logger.info('image dims {}'.format(self._image_dims))
-        # logger.info('before xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(xmin,xmax,ymin,ymax,zmin,zmax))
-        # logger.info('before screen xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(screen_xmin,screen_xmax,screen_ymin,screen_ymax,screen_zmin,screen_zmax))
-
-        # check if they violate image boundary and fix it
-        if xmin<0:
-            screen_xmax = self.screen_dims[0]-abs(xmin)
-            xmin = 0
-        if ymin<0:
-            screen_ymax = self.screen_dims[1]-abs(ymin)
-            ymin = 0
-        if zmin<0:
-            screen_zmax = self.screen_dims[2]-abs(zmin)
-            zmin = 0
-        if xmax>self._image_dims[0]:
-            screen_xmin = xmax-self._image_dims[0]
-            xmax = self._image_dims[0]
-        if ymax>self._image_dims[1]:
-            screen_ymin = ymax-self._image_dims[1]
-            ymax = self._image_dims[1]
-        if zmax>self._image_dims[2]:
-            screen_zmin = zmax-self._image_dims[2]
-            zmax = self._image_dims[2]
-
-        # logger.info('after xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(xmin,xmax,ymin,ymax,zmin,zmax))
-        # logger.info('after screen xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(screen_xmin,screen_xmax,screen_ymin,screen_ymax,screen_zmin,screen_zmax))
-
-        # update current screen
-        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[xmin:xmax, ymin:ymax, zmin:zmax]
-
-        return screen
-
-    def get_plane(self,z=0):
-        return self._image.data[:, :, z]
-
-
-    def _calc_reward(self, current_loc, next_loc):
-        ''' Calculate the new reward based on the euclidean distance to the target location
+    def _update_history(self):
+        ''' update history buffer with current state
         '''
-        curr_dist = np.linalg.norm(current_loc - self._target_loc)
-        next_dist = np.linalg.norm(next_loc - self._target_loc)
-        return curr_dist - next_dist
+        # update distance history
+        self._dist_history[:-1] = self._dist_history[1:]
+        self._dist_history[-1] = self.cur_dist
+        # update params history
+        self._params_history[:-1] = self._params_history[1:]
+        self._params_history[-1] = self.cur_dist
+        # TODO: update q-value history
+
+    def _calc_reward(self, prev_points, next_points):
+        ''' Calculate the new reward based on the euclidean distance to the target plane
+        '''
+        prev_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
+                                         prev_points)
+        next_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
+                                         next_points)
+        return prev_dist - next_dist
 
     @property
     def _oscillate(self):
         ''' Return True if the agent is stuck and oscillating
         '''
-        counter = Counter(self._loc_history)
+        counter = Counter(self._dist_history)
         freq = counter.most_common()
 
-        if freq[0][0] == (0,0,0):
+        if freq[0][0] == (0,0,0,0):
             return False
         elif (freq[0][1]>3):
             return True
 
-
     def get_action_meanings(self):
-        ''' return array of integers for actions'''
+        ''' return array of integers for actions '''
         ACTION_MEANING = {
-            1 : "UP",       # MOVE Z+
-            2 : "FORWARD",  # MOVE Y+
-            3 : "RIGHT",    # MOVE X+
-            4 : "LEFT",     # MOVE X-
-            5 : "BACKWARD", # MOVE Y-
-            6 : "DOWN",     # MOVE Z-
+            0 : "inc_x",    # increment +1 the norm angle in x-direction
+            1 : "inc_y",    # increment +1 the norm angle in y-direction
+            2 : "inc_z",    # increment +1 the norm angle in z-direction
+            3 : "inc_d",    # increment +1 the norm distance d to origin
+            4 : "dec_x",    # decrement -1 the norm angle in x-direction
+            5 : "dec_y",    # decrement -1 the norm angle in y-direction
+            6 : "dec_z",    # decrement -1 the norm angle in z-direction
+            7 : "dec_d",    # decrement -1 the norm distance d to origin
         }
         return [ACTION_MEANING[i] for i in self.actions]
 
@@ -401,6 +363,7 @@ class MedicalPlayer(gym.Env):
         self.stats = defaultdict(list)
         self.num_games = StatCounter()
         self.num_success = StatCounter()
+
 
     def display(self, return_rgb_array=False):
         # pass
@@ -474,7 +437,6 @@ class DiscreteActionSpace(object):
 
     def __str__(self):
         return "DiscreteActionSpace({})".format(self.num)
-
 
 # =============================================================================
 # ================================ FrameStack =================================
