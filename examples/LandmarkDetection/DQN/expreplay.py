@@ -200,6 +200,10 @@ class ExpReplay(DataFlow, Callback):
     def _populate_exp(self):
         """ populate a transition by epsilon-greedy"""
         old_s = self._current_ob
+
+        # intialize q_values to zeros
+        q_values = [0,] * self.num_actions
+
         if self.rng.rand() <= self.exploration or (len(self.mem) <= self.history_len):
             act = self.rng.choice(range(self.num_actions))
         else:
@@ -217,7 +221,7 @@ class ExpReplay(DataFlow, Callback):
 
             act = np.argmax(q_values)
 
-        self._current_ob, reward, isOver, info = self.player.step(act)
+        self._current_ob, reward, isOver, info = self.player.step(act, q_values)
 
         if isOver:
             # if info['gameOver']:  # only record score when a whole game is over (not when an episode is over)

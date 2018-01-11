@@ -933,7 +933,7 @@ def calcMaxDistTwoPlanes(points1, points2):
 if __name__ == "__main__":
 
 
-    directory = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/plane_detection/cardiac/'
+    directory = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/'
 
     # save_dir = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/plane_detection/train/'
 
@@ -941,7 +941,7 @@ if __name__ == "__main__":
     sampled_files = train_files.sample_circular()
 
     plane_size = (85,85,9)
-    spacing = (2,2,2)
+    spacing = (3,3,3)
 
     for i in range(train_files.num_files):
 

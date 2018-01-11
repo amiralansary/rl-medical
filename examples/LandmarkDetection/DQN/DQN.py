@@ -68,68 +68,24 @@ NUM_ACTIONS = None
 METHOD = None
 
 
-
-###############################################################################
 ###############################################################################
 
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/train_files_svr/'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/validate_files_svr'
+data_dir = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection/DQN/data/fetal_brain_us_yuanwei_miccai_2018/'
+test_list = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection/DQN/data/fetal_brain_us_yuanwei_miccai_2018/test_list.txt'
+train_list = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection/DQN/data/fetal_brain_us_yuanwei_miccai_2018/train_list.txt'
+
+logger_dir = os.path.join('train_log', 'DQN_fetal_US_ROI_85_85_9_yuanwei_miccai2018')
+
 
 ###############################################################################
-###############################################################################
 
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/training'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/DQN-landmark/data/mri_cardio_ozan/testing'
-# logger_dir = os.path.join('train_log', 'DQN_cardio_MRI_ROI_85_85_9')
-
-###############################################################################
-###############################################################################
-
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/train/'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/test/'
-# logger_dir = os.path.join('train_log', 'DQN_fetal_US_ROI_85_85_9')
-
-###############################################################################
-###############################################################################
-
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/train_nlm/'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/test_nlm/'
-# logger_dir = os.path.join('train_log', 'DQN_fetal_US_ROI_85_85_9_nlm')
-
-###############################################################################
-###############################################################################
-
-# ## unalign non-normalized
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/train_unalign/'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/test_unalign/'
-# logger_dir = os.path.join('train_log', 'DQN_fetal_US_ROI_85_85_9_unalign')
-
-# ## unalign nlm normalized
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/train_unalign_nlm/'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/test_unalign_nlm/'
-# logger_dir = os.path.join('train_log', 'DQN_fetal_US_ROI_85_85_9_unalign_nlm')
-
-###############################################################################
-###############################################################################
-
-# roughly aligned non-nomralized
-TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/train_align_pro/'
-VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/test_align_pro/'
-logger_dir = os.path.join('train_log', 'DQN_fetal_US_ROI_85_85_9_align_pro')
-
-# ## roughly aligned nlm nomralized
-# TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/train_align_pro_nlm/'
-# VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/test_align_pro_nlm/'
-# logger_dir = os.path.join('train_log', 'DQN_fetal_US_ROI_85_85_9_align_pro_nlm')
-###############################################################################
-
-
-def get_player(directory=None, viz=False, train=False, savegif=False):
+def get_player(directory=None, files_list= None,
+               viz=False, train=False, savegif=False):
 
     # atari max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
                         viz=viz, savegif=savegif, train=train,
-                        max_num_frames=500)
+                        files_list=files_list, max_num_frames=500)
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
@@ -171,7 +127,8 @@ class Model(DQNModel):
 def get_config():
     expreplay = ExpReplay(
         predictor_io_names=(['state'], ['Qvalue']),
-        player=get_player(directory=TRAIN_DIR, train=True),
+        player=get_player(directory=data_dir, train=True,
+                          files_list=train_list),
         state_shape=IMAGE_SIZE,
         batch_size=BATCH_SIZE,
         memory_size=MEMORY_SIZE,
@@ -201,8 +158,8 @@ def get_config():
                 interp='linear'),
             PeriodicTrigger(
                 Evaluator(nr_eval=EVAL_EPISODE, input_names=['state'],
-                          output_names=['Qvalue'], directory=VALID_DIR,
-                          get_player_fn=get_player),
+                          output_names=['Qvalue'], directory=data_dir,
+                          files_list=test_list, get_player_fn=get_player),
                 every_k_epochs=5),
             HumanHyperParamSetter('learning_rate'),
         ],
@@ -236,8 +193,12 @@ if __name__ == '__main__':
     # ROM_FILE = args.rom
     METHOD = args.algo
     # set num_actions
-    NUM_ACTIONS = MedicalPlayer(directory=TRAIN_DIR,screen_dims=IMAGE_SIZE).action_space.n
-    # NUM_ACTIONS = MedicalPlayer(ROM_FILE).get_action_space().num_actions()
+    init_player = MedicalPlayer(directory=data_dir,
+                                files_list=test_list,
+                                screen_dims=IMAGE_SIZE)
+    NUM_ACTIONS = init_player.action_space.n
+    num_validation_files = init_player.files.num_files
+
     # logger.info("ROM: {}, Num Actions: {}".format(ROM_FILE, NUM_ACTIONS))
 
     if args.task != 'train':
@@ -247,9 +208,13 @@ if __name__ == '__main__':
             session_init=get_model_loader(args.load),
             input_names=['state'],
             output_names=['Qvalue']))
+
         if args.task == 'play':
-            play_n_episodes(get_player(directory=VALID_DIR,viz=0.01,
-                                       savegif=args.savegif) ,pred, 100)
+            play_n_episodes(get_player(directory=data_dir,
+                                       files_list=test_list, viz=0.01,
+                                       savegif=args.savegif),
+                            pred, num_validation_files)
+
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
     else:

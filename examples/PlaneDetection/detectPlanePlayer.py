@@ -292,6 +292,9 @@ class MedicalPlayer(gym.Env):
         # this done in exp replay
         # if self.terminal:   self.reset()
 
+        # threshold reward between -1 and 1
+        self.reward = np.sign(self.reward)
+
         return self._current_state(), self.reward, self.terminal, info
 
     # -------------------------------------------------------------------------

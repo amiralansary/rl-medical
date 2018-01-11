@@ -68,14 +68,14 @@ NUM_ACTIONS = None
 METHOD = None
 
 
-
 ###############################################################################
 ###############################################################################
 
-TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/plane_detection/cardiac/train/'
-VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection3D/ultrasound_fetal_brain_DQN/data/plane_detection/cardiac/test/'
+TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/train/'
+VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/test/'
 
-logger_dir = os.path.join('train_log', 'DQN_cardio_mri_plane_detection_2mm')
+logger_dir = os.path.join('train_log',
+                          'DQN_cardio_mri_plane_detection_unit_reward_2mm')
 
 
 ###############################################################################
@@ -86,7 +86,7 @@ def get_player(directory=None, viz=False, train=False, savegif=False):
     # atari max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
                         viz=viz, savegif=savegif, train=train,
-                        spacing=(2,2,2), max_num_frames=1000)
+                        spacing=(3,3,3), max_num_frames=1000)
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)

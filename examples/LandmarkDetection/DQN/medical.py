@@ -50,8 +50,8 @@ class MedicalPlayer(gym.Env):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=False, train=False,
-                 screen_dims=(27,27,27), location_history_length=16,
+    def __init__(self, directory=None, viz=False, train=False, files_list=None,
+                 screen_dims=(27,27,27), history_length=16,
                  max_num_frames=0, savegif=False):
         """
         :param train_directory: environment or game name
@@ -83,9 +83,7 @@ class MedicalPlayer(gym.Env):
         # image dimension (2D/3D)
         self.screen_dims = screen_dims
         self.dims = len(self.screen_dims)
-        # history buffer for storing last locations to check oscilations
-        self._loc_history_length = location_history_length
-        self._loc_history = [(0,) * self.dims] * self._loc_history_length
+
         if self.dims == 2:
             self.width, self.height = screen_dims
         else:
@@ -113,14 +111,19 @@ class MedicalPlayer(gym.Env):
         self.observation_space = spaces.Box(low=0, high=255,
                                             shape=self.screen_dims)
 
+        # history buffer for storing last locations to check oscilations
+        self._history_length = history_length
+        self._loc_history = [(0,) * self.dims] * self._history_length
+        self._qvalues_history = [(0,) * self.actions] * self._history_length
+
         # add your data loader here
-        self.train_files = trainFiles_fetal_US(directory)
-        # self.train_files = trainFiles_cardio(directory)
-        # self.train_files = trainFiles(directory)
+        self.files = filesListFetalUSLandmark(directory,files_list)
+        # self.files = filesFetalUSLandmark(directory)
+        # self.files = filesCardioLandmark(directory)
 
         # prepare file sampler
         self.filepath = None
-        self.sampled_files = self.train_files.sample_circular()
+        self.sampled_files = self.files.sample_circular()
 
         # restart episode
         self._restart_episode()
@@ -137,7 +140,8 @@ class MedicalPlayer(gym.Env):
         self.terminal = False
         self.num_games.feed(1)
         self.current_episode_score.reset()  # reset the stat counter
-        self._loc_history = list([(0,0,0)]) * self._loc_history_length
+        self._loc_history = [(0,) * self.dims] * self._history_length
+        self._qvalues_history = [(0,) * self.actions] * self._history_length
         self.new_random_game()
 
     def new_random_game(self):
@@ -145,7 +149,7 @@ class MedicalPlayer(gym.Env):
         self.terminal = False
         self.viewer = None
         # sample a new image
-        self._image, self._target_loc, self.filepath = next(self.sampled_files)# self.train_files.sample()
+        self._image, self._target_loc, self.filepath, self.spacing = next(self.sampled_files)
         self.filename = os.path.basename(self.filepath)
 
 
@@ -179,11 +183,23 @@ class MedicalPlayer(gym.Env):
 
         self._location = (x,y,z)
         self._start_location = (x,y,z)
+        self._qvalues = [0,] * self.actions
         self._screen = self._current_state()
 
-        self.cur_dist = np.linalg.norm(self._location - self._target_loc)
+        self.cur_dist = self.calcDistance(self._location,
+                                          self._target_loc,
+                                          self.spacing)
 
-    def _step(self, act):
+
+    def calcDistance(self, points1, points2, spacing=(1,1,1)):
+         ''' calculate the distance between two points in mm'''
+         spacing = np.array(spacing)
+         points1 = spacing * np.array(points1)
+         points2 = spacing * np.array(points2)
+         return np.linalg.norm(points1 - points2)
+
+
+    def step(self, act, qvalues):
         """The environment's step function returns exactly what we need.
         Args:
           action:
@@ -197,6 +213,7 @@ class MedicalPlayer(gym.Env):
           info (dict):
             diagnostic information useful for debugging. It can sometimes be useful for learning (for example, it might contain the raw probabilities behind the environment's last state change). However, official evaluations of your agent are not allowed to use this for learning.
         """
+        self._qvalues = qvalues
         current_loc = self._location
         self.terminal = False
         go_out = False
@@ -259,10 +276,11 @@ class MedicalPlayer(gym.Env):
         # update screen, reward ,location, terminal
         self._location = next_location
         self._screen = self._current_state()
-        self.cur_dist = np.linalg.norm(self._location - self._target_loc)
-
-        # add new location to history buffer for oscillations
-        self._add_loc(next_location)
+        self.cur_dist = self.calcDistance(self._location,
+                                          self._target_loc,
+                                          self.spacing)
+        # update history buffer with new location and qvalues
+        self._update_history()
 
         # logger.info('current distance = {}'.format(self.cur_dist))
         if self.train:
@@ -274,6 +292,7 @@ class MedicalPlayer(gym.Env):
             # check if agent oscillates
             if self._oscillate:
                 self.terminal = True
+                self._location = self.getBestLocation()
                 if self.cur_dist<1: self.num_success.feed(1)
 
         # render screen if viz is on
@@ -290,20 +309,41 @@ class MedicalPlayer(gym.Env):
         distance_error = self.cur_dist
         self.current_episode_score.feed(self.reward)
 
-        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error}
+        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error, 'filename':self.filename}
 
         # this done in exp replay
         # if self.terminal:   self.reset()
 
         return self._current_state(), self.reward, self.terminal, info
 
-
-    def _add_loc(self, location):
-        ''' Add new location points to the location history buffer
+    def getBestLocation(self):
+        ''' get best location with best qvalue from last for locations
+        stored in history
         '''
-        self._loc_history[:-1] = self._loc_history[1:]
-        self._loc_history[-1] = location
+        last_qvalues_history = self._qvalues_history[-4:]
+        last_loc_history = self._loc_history[-4:]
+        best_qvalues = np.max(last_qvalues_history, axis=1)
+        best_idx = best_qvalues.argmax()
+        best_location = last_loc_history[best_idx]
 
+        # logger.info('qvalues history {}'.format(self._qvalues_history))
+        # logger.info('best_qvalues {}'.format(best_qvalues))
+        # logger.info('best_idx {}'.format(best_idx))
+
+        # logger.info('location history {}'.format(self._loc_history))
+        # logger.info('best_location {}'.format(best_location))
+
+        return best_location
+
+    def _update_history(self):
+        ''' update history buffer with current state
+        '''
+        # update location history
+        self._loc_history[:-1] = self._loc_history[1:]
+        self._loc_history[-1] = self._location
+        # update q-value history
+        self._qvalues_history[:-1] = self._qvalues_history[1:]
+        self._qvalues_history[-1] = self._qvalues
 
     def _current_state(self):
         # initialize screen with zeros - all background
@@ -357,8 +397,10 @@ class MedicalPlayer(gym.Env):
     def _calc_reward(self, current_loc, next_loc):
         ''' Calculate the new reward based on the euclidean distance to the target location
         '''
-        curr_dist = np.linalg.norm(current_loc - self._target_loc)
-        next_dist = np.linalg.norm(next_loc - self._target_loc)
+        curr_dist = self.calcDistance(current_loc, self._target_loc,
+                                      self.spacing)
+        next_dist = self.calcDistance(next_loc, self._target_loc,
+                                      self.spacing)
         return curr_dist - next_dist
 
     @property
@@ -500,8 +542,8 @@ class FrameStack(gym.Wrapper):
         self.frames.append(ob)
         return self._observation()
 
-    def _step(self, action):
-        ob, reward, done, info = self.env.step(action)
+    def step(self, action, q_values):
+        ob, reward, done, info = self.env.step(action, q_values)
         self.frames.append(ob)
         return self._observation(), reward, done, info
 
