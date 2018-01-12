@@ -37,12 +37,17 @@ class SimpleImageViewer(object):
                                            resizable=True,
                                            #fullscreen=True # ruins screen resolution
                                            )
+
+        ## set location
         screen_width = self.window.display.get_default_screen().width
         screen_height = self.window.display.get_default_screen().height
-        location_x = screen_width / 2 - 2* width
-        location_y = screen_height / 2 - 2* height
-        self.window.set_location((int)(location_x), (int)(location_y))
+        self.location_x = screen_width / 2 - 2* width
+        self.location_y = screen_height / 2 - 2* height
+        self.window.set_location((int)(self.location_x), (int)(self.location_y))
 
+        ## scale window size
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glScalef(scale_x, scale_y, 1.0)
 
         self.img_width = width
@@ -106,6 +111,16 @@ class SimpleImageViewer(object):
         glColor4f(1.0, 1.0, 1.0, 1.0);
 
 
+    def display_text(self, text, x, y, color=(0,0,255,255), #RGBA
+                     anchor_x='left', anchor_y='top'):
+        label = pyglet.text.Label(text,
+                                  font_name='Ariel', color=color,
+                                  font_size=15, #bold=True,
+                                  x=x, y=y,
+                                  anchor_x=anchor_x, anchor_y=anchor_y)
+        label.draw()
+
+
     def render(self):
         self.window.flip()
 
@@ -119,3 +134,5 @@ class SimpleImageViewer(object):
             self.isopen = False
     def __del__(self):
         self.close()
+
+

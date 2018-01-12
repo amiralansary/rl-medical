@@ -11,6 +11,7 @@ import numpy as np
 from tensorpack import logger
 from collections import (Counter, defaultdict, deque)
 
+import scipy as sp
 import cv2
 import math
 import time
@@ -452,33 +453,45 @@ class MedicalPlayer(gym.Env):
         # get image and convert it to pyglet
         plane = self.get_plane(current_point[2])# z-plane
         img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
+        # rescale image
+        # INTER_NEAREST, INTER_LINEAR, INTER_AREA, INTER_CUBIC, INTER_LANCZOS4
+        scale_x=2.5
+        scale_y=2.5
+        img = cv2.resize(img,
+                         (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
+                         interpolation=cv2.INTER_LINEAR)
         # skip if there is a viewer open
         if self.viewer is None:
             self.viewer = SimpleImageViewer(arr=img,
-                                            scale_x=2,
-                                            scale_y=2,
+                                            scale_x=1,
+                                            scale_y=1,
                                             filepath=self.filename)
             self.gif_buffer = []
         # display image
         self.viewer.draw_image(img)
         # draw a transparent circle around target point with variable radius
         # based on the difference z-direction
-        diff_z = abs(current_point[2]-target_point[2])
-        self.viewer.draw_circle(radius=diff_z,
-                                pos_x=target_point[0],
-                                pos_y=target_point[1],
-                                color=(1.0,0.0,0.0,0.2))
+        diff_z = scale_x * scale_y * abs(current_point[2]-target_point[2])
+        self.viewer.draw_circle(radius = diff_z,
+                                pos_x = scale_x*target_point[0],
+                                pos_y = scale_y*target_point[1],
+                                color = (1.0,0.0,0.0,0.2))
         # draw target point
-        self.viewer.draw_circle(radius=1,
-                                pos_x=target_point[0],
-                                pos_y=target_point[1],
-                                color=(1.0,0.0,0.0,1.0))
+        self.viewer.draw_circle(radius = scale_x * scale_y * 1,
+                                pos_x = scale_x*target_point[0],
+                                pos_y = scale_y*target_point[1],
+                                color = (1.0,0.0,0.0,1.0))
         # draw current point
-        self.viewer.draw_circle(radius=1,
-                                pos_x=current_point[0],
-                                pos_y=current_point[1],
-                                color=(0.0,0.0,1.0,1.0))
+        self.viewer.draw_circle(radius = scale_x * scale_y * 1,
+                                pos_x = scale_x * current_point[0],
+                                pos_y = scale_y * current_point[1],
+                                color = (0.0,0.0,1.0,1.0))
+        # display info
+        color = (0,255,0,255) if self.reward>0 else (255,0,0,255)
+        text = 'dist error ' + str(round(self.cur_dist,3)) + 'mm'
 
+        self.viewer.display_text(text, color=color, x=10,
+                                 y=img.shape[0])
         # render and wait (viz) time between frames
         self.viewer.render()
         # time.sleep(self.viz)

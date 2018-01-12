@@ -75,7 +75,7 @@ TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/Pla
 VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/test/'
 
 logger_dir = os.path.join('train_log',
-                          'DQN_cardio_mri_plane_detection_unit_reward_2mm')
+                          'test')
 
 
 ###############################################################################
@@ -206,7 +206,7 @@ if __name__ == '__main__':
             output_names=['Qvalue']))
         if args.task == 'play':
             play_n_episodes(get_player(directory=VALID_DIR,viz=0.01,
-                                       savegif=args.savegif) ,pred, 100)
+                                       savegif=args.savegif), pred, 100)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
     else:
