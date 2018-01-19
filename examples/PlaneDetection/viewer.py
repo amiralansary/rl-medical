@@ -37,6 +37,10 @@ class SimpleImageViewer(object):
                                            resizable=True,
                                            #fullscreen=True # ruins screen resolution
                                            )
+        ## scale window size
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glScalef(scale_x, scale_y, 1.0)
 
         ## set location
         screen_width = self.window.display.get_default_screen().width
@@ -45,10 +49,6 @@ class SimpleImageViewer(object):
         self.location_y = screen_height / 2 - 2* height
         self.window.set_location((int)(self.location_x), (int)(self.location_y))
 
-        ## scale window size
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glScalef(scale_x, scale_y, 1.0)
 
         self.img_width = width
         self.img_height = height

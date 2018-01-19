@@ -46,7 +46,7 @@ def play_one_episode(env, func, render=False):
             env.render()
         sum_r += r
         if isOver:
-            return sum_r, info['filename'], info['distError']
+            return sum_r, info['filename'], info['distError'], q_values
 
 ###############################################################################
 
@@ -55,11 +55,10 @@ def play_n_episodes(player, predfunc, nr, render=False):
     for k in range(nr):
         # if k != 0:
         #     player.restart_episode()
-        score, filename, ditance_error = play_one_episode(player,
+        score, filename, ditance_error, q_values = play_one_episode(player,
                                                           predfunc,
                                                           render=render)
-        logger.info("{}/{} - {} - score {} - distError {}".format(k+1, nr,
-                                            filename, score, ditance_error))
+        logger.info("{}/{} - {} - score {} - distError {} - q_values {}".format(k+1, nr, filename, score, ditance_error, q_values))
 
 ###############################################################################
 
@@ -88,7 +87,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
                                        files_list=files_list)
                 while not self.stopped():
                     try:
-                        score, filename, ditance_error = play_one_episode(player, self.func)
+                        score, filename, ditance_error, q_values = play_one_episode(player, self.func)
                         # print("Score, ", score)
                     except RuntimeError:
                         return

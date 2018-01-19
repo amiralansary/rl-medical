@@ -211,7 +211,7 @@ if __name__ == '__main__':
 
         if args.task == 'play':
             play_n_episodes(get_player(directory=data_dir,
-                                       files_list=test_list, viz=0.01,
+                                       files_list=test_list, viz=1,
                                        savegif=args.savegif),
                             pred, num_validation_files)
 

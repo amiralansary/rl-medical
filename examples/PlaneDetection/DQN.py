@@ -19,7 +19,8 @@ from collections import deque
 
 import tensorflow as tf
 
-from detectPlanePlayer import MedicalPlayer, FrameStack
+# from detectPlanePlayer import MedicalPlayer, FrameStack
+from detectPlanePlayerSupervised import MedicalPlayer, FrameStack
 
 
 os.environ['TENSORPACK_TRAIN_API'] = 'v2'   # will become default soon
@@ -75,7 +76,7 @@ TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/Pla
 VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/test/'
 
 logger_dir = os.path.join('train_log',
-                          'test')
+                          'test_dist_params_spacing3_max1000_heirarchical16_unsupervised_high_learn_rate')
 
 
 ###############################################################################
@@ -150,7 +151,8 @@ def get_config():
                 every_k_steps=10000 // UPDATE_FREQ),
             expreplay,
             ScheduledHyperParamSetter('learning_rate',
-                                      [(60, 4e-4), (100, 2e-4)]),
+                                      # [(60, 4e-4), (100, 2e-4)]),
+                                       [(30, 1e-2), (60, 1e-3), (85, 1e-4), (95, 1e-5)]),
             ScheduledHyperParamSetter(
                 ObjAttrParam(expreplay, 'exploration'),
                 # 1->0.1 in the first million steps
@@ -158,7 +160,7 @@ def get_config():
                 interp='linear'),
             PeriodicTrigger(
                 Evaluator(nr_eval=EVAL_EPISODE, input_names=['state'],
-                          output_names=['Qvalue'], directory=VALID_DIR,
+                          output_names=['Qvalue'], directory=TRAIN_DIR,
                           get_player_fn=get_player),
                 every_k_epochs=5),
             HumanHyperParamSetter('learning_rate'),
@@ -205,7 +207,7 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue']))
         if args.task == 'play':
-            play_n_episodes(get_player(directory=VALID_DIR,viz=0.01,
+            play_n_episodes(get_player(directory=TRAIN_DIR,viz=0.01,
                                        savegif=args.savegif), pred, 100)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)

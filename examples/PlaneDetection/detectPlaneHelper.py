@@ -1,5 +1,4 @@
-
-
+from IPython.core.debugger import set_trace
 import SimpleITK as sitk
 import numpy as np
 
@@ -89,7 +88,7 @@ def sampleGrid(sitk_image3d, origin_point,
                      grid_final[0,0,-1,:].tolist(),
                      grid_final[-1,-1,-1,:].tolist()]
 
-    return grid, sorted(corner_points)
+    return grid, sorted(corner_points) #sorted(corner_points)
 
 
 
@@ -107,9 +106,15 @@ def getInitialPlane(sitk_image3d, plane_size,
     if not origin_point:
         origin_point = [int(i/2) for i in sitk_image3d.GetSize()]
 
-    pointx = (origin_point[0] + 1, origin_point[1], origin_point[2])
-    pointy = (origin_point[0], origin_point[1] + 1, origin_point[2])
-    pointz = (origin_point[0], origin_point[1], origin_point[2]+1)
+    pointx = (origin_point[0] + plane_size[0]/2,
+              origin_point[1],
+              origin_point[2])
+    pointy = (origin_point[0],
+              origin_point[1] + plane_size[1]/2,
+              origin_point[2])
+    pointz = (origin_point[0],
+              origin_point[1],
+              origin_point[2]+1)
     # physical coordinates
     plane_origin = sitk_image3d.TransformContinuousIndexToPhysicalPoint(origin_point)
     pointx_physical = sitk_image3d.TransformContinuousIndexToPhysicalPoint(
@@ -148,14 +153,14 @@ def getInitialPlane(sitk_image3d, plane_size,
                     np.rad2deg(np.arccos(c)),
                     d]
 
-    return grid_2d, plane_norm, plane_origin, plane_params, corner_points
+    return grid_2d, plane_norm, plane_origin, plane_params, sorted(corner_points)
 
 
 ###############################################################################
 ###############################################################################
 
 def getGroundTruthPlane(sitk_image3d,sitk_image2d,
-                        origin_point3d,plane_size,spacing=(1,1,1)):
+                        origin_image3d,plane_size,spacing=(1,1,1)):
     ''' This function extracts the ground truth plane
         Returns:
             plane in the norm form
@@ -164,7 +169,7 @@ def getGroundTruthPlane(sitk_image3d,sitk_image2d,
     size_image2d = sitk_image2d.GetSize()
     size_image3d = sitk_image3d.GetSize()
 
-    origin_point3d_physical = np.array(sitk_image3d.TransformContinuousIndexToPhysicalPoint(origin_point3d))
+    origin_image3d_physical = np.array(sitk_image3d.TransformContinuousIndexToPhysicalPoint(origin_image3d))
 
     # extract three points in sitk_image2d coordinates
     center_point2d = [int(i/2) for i in size_image2d]
@@ -192,15 +197,15 @@ def getGroundTruthPlane(sitk_image3d,sitk_image2d,
     # normalise norm vector
     plane_norm = normalizeUnitVector(plane_norm)
     # plane origin is defined by projecting the 3d origin on the plane
-    plane_origin = projectPointOnPlane(origin_point3d_physical,
+    plane_origin = projectPointOnPlane(origin_image3d_physical,
                                        plane_norm,
                                        center_point2d_physical)
     # -------------------------------------------------------------------------
     # find point in x-direction of the 3d volume to sample in this direction
     # sample a 2d grid of size[x,y] in xy-directions of the image_3d
-    pointx3d = (size_image3d[0]-plane_size[0]/2,
-                origin_point3d[1],
-                origin_point3d[2])
+    pointx3d = (origin_image3d[0] + plane_size[0]/2,
+                origin_image3d[1],
+                origin_image3d[2])
     # physical coordinates
     pointx3d_physical = sitk_image3d.TransformContinuousIndexToPhysicalPoint(
                         pointx3d)
@@ -208,9 +213,9 @@ def getGroundTruthPlane(sitk_image3d,sitk_image2d,
                                              plane_norm,
                                              center_point2d_physical)
     # new plane coordinate unit vectors
-    unit_vector_x_positive =[pointx3d_projected[0]-plane_origin[0],
-                            pointx3d_projected[1]-plane_origin[1],
-                            pointx3d_projected[2]-plane_origin[2]]
+    unit_vector_x_positive =[pointx3d_projected[0] - plane_origin[0],
+                            pointx3d_projected[1] - plane_origin[1],
+                            pointx3d_projected[2] - plane_origin[2]]
     unit_vector_y_positive = np.cross(plane_norm, unit_vector_x_positive)
     # normalize unit vectors
     unit_vector_x_positive = normalizeUnitVector(unit_vector_x_positive)
@@ -234,7 +239,7 @@ def getGroundTruthPlane(sitk_image3d,sitk_image2d,
                     np.rad2deg(np.arccos(c)),
                     d]
 
-    return grid_2d, plane_norm, plane_origin, plane_params, corner_points
+    return grid_2d, plane_norm, plane_origin, plane_params, sorted(corner_points)
 
 ###############################################################################
 
@@ -249,6 +254,7 @@ def getPlane(sitk_image3d, origin_image3d,
                   plane_params[3]]
     # print('a {}, b {}, c {}, d {}'.format(a, b, c, d))
 
+    # plane_norm = normalizeUnitVector(np.array((a,b,c)))
     plane_norm = np.array((a,b,c))
 
     # get point on the new plane
@@ -257,35 +263,46 @@ def getPlane(sitk_image3d, origin_image3d,
     z = (d - a*x - b*y) / c
     point_plane_new = (x,y,z)
     # project the 3d origin on the new plane to get the new plane origin
-    plane_origin_new = projectPointOnPlane(origin_image3d_physical, plane_norm, point_plane_new)
+    plane_origin = projectPointOnPlane(origin_image3d_physical, plane_norm, point_plane_new)
     # select a random point on the x-axis of image3d
-    pointx_image3d = (origin_image3d[0] + plane_size[0]/2,
-                      origin_image3d[1],
-                      origin_image3d[2])
-    pointx3d_physical = sitk_image3d.TransformContinuousIndexToPhysicalPoint(pointx_image3d)
+    pointx3d = (origin_image3d[0] + plane_size[0]/2,
+                origin_image3d[1],
+                origin_image3d[2])
+    pointx3d_physical = sitk_image3d.TransformContinuousIndexToPhysicalPoint(pointx3d)
     pointx_projected = projectPointOnPlane(pointx3d_physical,
-                                           plane_norm, point_plane_new)
+                                           plane_norm, plane_origin)
     # unit vectors
-    unit_vector_x_positive = np.array((pointx_projected[0]-plane_origin_new[0],
-                                    pointx_projected[1] - plane_origin_new[1],
-                                    pointx_projected[2] - plane_origin_new[2]))
+    unit_vector_x_positive = np.array((pointx_projected[0] - plane_origin[0],
+                                    pointx_projected[1] - plane_origin[1],
+                                    pointx_projected[2] - plane_origin[2]))
     # find the y-axis
     unit_vector_y_positive = np.cross(plane_norm, unit_vector_x_positive)
-    # copy the z-axis from plane norm
-    unit_vector_z_positive = np.array(plane_norm)
     # normalize unit vectors
     unit_vector_x_positive = normalizeUnitVector(unit_vector_x_positive)
     unit_vector_y_positive = normalizeUnitVector(unit_vector_y_positive)
-    unit_vector_z_positive = normalizeUnitVector(unit_vector_z_positive)
+    # copy the z-axis from plane norm
+    unit_vector_z_positive = np.copy(plane_norm)
+    # unit_vector_z_positive = normalizeUnitVector(unit_vector_z_positive)
     # get the grid and corner points
-    grid_2d, corner_points = sampleGrid(sitk_image3d, plane_origin_new,
+    grid_2d, corner_points = sampleGrid(sitk_image3d, plane_origin,
                                        unit_vector_x_positive,
                                        unit_vector_y_positive,
                                        unit_vector_z_positive,
                                        plane_size,
                                        spacing=spacing)
 
-    return grid_2d, plane_norm, plane_origin_new, plane_params, corner_points
+    # # plane equation ax+by+cz=d , where norm = (a,b,c), and d=a*x0+b*y0+c*z0
+    # a, b, c = plane_norm[0], plane_norm[1], plane_norm[2]
+    # x0, y0, z0 = plane_origin[0], plane_origin[1], plane_origin[2]
+
+    # d = a*x0 + b*y0 + c*z0
+
+    # plane_params = [np.rad2deg(np.arccos(a)),
+    #                 np.rad2deg(np.arccos(b)),
+    #                 np.rad2deg(np.arccos(c)),
+    #                 d]
+
+    return grid_2d, plane_norm, plane_origin, plane_params, sorted(corner_points)
 
 
 ###############################################################################
@@ -294,6 +311,11 @@ def calcMaxDistTwoPlanes(points1, points2):
     Returns maximum distance between two sets of points.
     '''
     return max(np.linalg.norm(np.array(points1)-np.array(points2), axis=1))
+
+def calcDistTwoParams(params1, params2):
+    ''' distance metric between two parameters of planes.
+    '''
+    return np.linalg.norm(abs(np.array(params1)-np.array(params2)))
 
 
 def projectPointOnPlane(point, norm, point_in_plane):
@@ -320,10 +342,10 @@ def checkOriginLocation(sitk_image, origin_point):
     image_size = sitk_image.GetSize()
     # check if it is less than zero
     check1 = [i<=0 for i in point_location]
-    # check if it is less than zero
+    # check if it is larger than image boundaries
     check2 = [i>=j for i, j in zip(point_location, image_size)]
     # combine both
-    go_out = sum(check1) and sum(check2)
+    go_out = np.logical_or(sum(check1), sum(check2))
 
     return go_out
 
@@ -340,3 +362,12 @@ def checkBackgroundRatio(plane, min_pixel_val=0.5, ratio=0.8):
 
     return (zero_ratio > ratio)
 
+def checkParamsBound(params1, params2):
+    ''' bound the range between paramters '''
+    # the diff between angles within [-180,180] degrees
+    check1 = [abs(i-j)>18000 for i,j in zip(params1[:-1],params2[:-1])]
+    # the diff between translation within [-100,100] mm
+    check2 = abs(params1[-1] - params2[-1]) > 150
+    go_out = np.logical_or(sum(check1), check2)
+
+    return go_out

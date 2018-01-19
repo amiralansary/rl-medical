@@ -31,22 +31,22 @@ def play_one_episode(env, func, render=False):
         Map from observation to action, with 0.001 greedy.
         """
         act = func(s[None, :, :, :])[0][0].argmax()
+        q_values = func(s[None, :, :, :])[0][0]
         # if random.random() < 0.001:
         #     spc = env.action_space
         #     act = spc.sample()
-        return act
+        return act, q_values
 
     ob = env.reset()
     sum_r = 0
     while True:
-        act = predict(ob)
-        ob, r, isOver, info = env.step(act)
+        act, q_values = predict(ob)
+        ob, r, isOver, info = env.step(act, q_values)
         if render:
             env.render()
         sum_r += r
         if isOver:
-            logger.info('info distError {}'.format(info['distError']))
-            return sum_r, info['distError']
+            return sum_r, info['filename'], info['distError'], q_values
 
 ###############################################################################
 
@@ -55,12 +55,15 @@ def play_n_episodes(player, predfunc, nr, render=False):
     for k in range(nr):
         # if k != 0:
         #     player.restart_episode()
-        score, ditance_error = play_one_episode(player, predfunc, render=render)
-        print("{}/{}, score={} - distError {}".format(k, nr, score, ditance_error))
+        score, filename, ditance_error, q_values = play_one_episode(player,
+                                                          predfunc,
+                                                          render=render)
+        logger.info("{}/{} - {} - score {} - distError {} - q_values {}".format(k+1, nr, filename, score, ditance_error, q_values))
 
 ###############################################################################
 
-def eval_with_funcs(predictors, nr_eval, get_player_fn, directory=None):
+def eval_with_funcs(predictors, nr_eval, get_player_fn,
+                    directory=None, files_list=None):
     """
     Args:
         predictors ([PredictorBase])
@@ -79,10 +82,12 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn, directory=None):
 
         def run(self):
             with self.default_sess():
-                player = get_player_fn(directory=directory,train=False)
+                player = get_player_fn(directory=directory,
+                                       train=False)#,
+                                       #files_list=files_list)
                 while not self.stopped():
                     try:
-                        score, ditance_error = play_one_episode(player, self.func)
+                        score, filename, ditance_error, q_values = play_one_episode(player, self.func)
                         # print("Score, ", score)
                     except RuntimeError:
                         return
@@ -139,9 +144,10 @@ def eval_model_multithread(pred, nr_eval, get_player_fn):
 
 class Evaluator(Callback):
 
-    def __init__(self, nr_eval, input_names,
-                 output_names, directory, get_player_fn):
+    def __init__(self, nr_eval, input_names, output_names,
+                 directory, get_player_fn, files_list = None):
         self.directory = directory
+        self.files_list = files_list
         self.eval_episode = nr_eval
         self.input_names = input_names
         self.output_names = output_names
@@ -154,7 +160,9 @@ class Evaluator(Callback):
 
     def _trigger(self):
         t = time.time()
-        mean_score, max_score, mean_dist, max_dist = eval_with_funcs(self.pred_funcs, self.eval_episode, self.get_player_fn, self.directory)
+        mean_score, max_score, mean_dist, max_dist = eval_with_funcs(
+                self.pred_funcs, self.eval_episode, self.get_player_fn,
+                self.directory, self.files_list)
         t = time.time() - t
         if t > 10 * 60:  # eval takes too long
             self.eval_episode = int(self.eval_episode * 0.94)

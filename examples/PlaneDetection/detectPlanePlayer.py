@@ -30,7 +30,7 @@ from tensorpack.utils.stats import StatCounter
 # from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
 
 
-from viewer import SimpleImageViewer
+# from viewer import SimpleImageViewer
 from sampleTrain import *
 from detectPlaneHelper import *
 
@@ -59,7 +59,7 @@ class MedicalPlayer(gym.Env):
 
     def __init__(self, directory=None, viz=False, train=False,
                  screen_dims=(27,27,27), spacing=(1,1,1), nullop_start=30,
-                 history_length=16, max_num_frames=0, savegif=False):
+                 history_length=20, max_num_frames=0, savegif=False):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -108,11 +108,12 @@ class MedicalPlayer(gym.Env):
         self._history_length = history_length
         # circular buffer to store plane parameters history [4,history_length]
         self._params_history = list([(0,0,0,0)]) * self._history_length
+        self._loc_history = [(0,) * self.dims] * self._history_length
         self._dist_history = [0] * self._history_length
         # stat counter to store current score or accumlated reward
         self.current_episode_score = StatCounter()
         # get action space and minimal action set
-        self.action_space = spaces.Discrete(8) # change number actions here
+        self.action_space = spaces.Discrete(2) # change number actions here
         self.actions = self.action_space.n
         self.observation_space = spaces.Box(low=0, high=255,
                                             shape=self.screen_dims)
@@ -146,6 +147,7 @@ class MedicalPlayer(gym.Env):
         self.num_games.feed(1)
         self.current_episode_score.reset()  # reset the stat counter
         self._params_history = list([(0,0,0,0)]) * self._history_length
+        self._loc_history = [(0,) * self.dims] * self._history_length
         self._dist_history = [0] * self._history_length
         self.new_random_game()
 
@@ -160,6 +162,7 @@ class MedicalPlayer(gym.Env):
         self.filename = os.path.basename(self.filepath)
         # image volume size
         self._image_dims = self.sitk_image.GetSize()
+        self.action_step = 8
 
         # find center point of the initial plane
         if self.train:
@@ -186,20 +189,40 @@ class MedicalPlayer(gym.Env):
                                             self._origin3d_point,
                                             self._plane_size,
                                             spacing=self.spacing))
-        # Get initial plane and set current plane the same
+
+        # logger.info('groundTruth {}'.format(self._groundTruth_plane.params))
+
+        # # Get initial plane and set current plane the same
         self._plane = self._init_plane = Plane(*getInitialPlane(
                                             sitk_image3d=self.sitk_image,
                                             plane_size=self._plane_size,
                                             origin_point=self._origin3d_point,
                                             spacing=self.spacing))
+
+        # ---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
+        # # translation only
+        # init_plane_params = np.copy(self._groundTruth_plane.params)
+        # init_plane_params[3] = self._plane.params[3]
+        # self._plane = self._init_plane  = Plane(*getPlane(self.sitk_image,
+        #                                         self._origin3d_point,
+        #                                         init_plane_params,
+        #                                         self._plane_size,
+        #                                         spacing=self.spacing))
+        # ---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
+
         # calculate current distance between initial and ground truth planes
         self.cur_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
-                                             self._init_plane.points)
+                                             self._plane.points)
+        # self.cur_dist = calcDistTwoParams(self._groundTruth_plane.params,
+        #                                   self._plane.params)
+
         self._screen = self._current_state()
 
     # -------------------------------------------------------------------------
 
-    def _step(self, act):
+    def step(self, act, qvalues):
         """The environment's step function returns exactly what we need.
         Args:
           action:
@@ -214,27 +237,31 @@ class MedicalPlayer(gym.Env):
             diagnostic information useful for debugging. It can sometimes be useful for learning (for example, it might contain the raw probabilities behind the environment's last state change). However, official evaluations of your agent are not allowed to use this for learning.
         """
         self.terminal = False
+        self._qvalues = qvalues
         # get current plane params
         current_plane_params = self._plane.params
         next_plane_params = current_plane_params.copy()
         # ---------------------------------------------------------------------
+        # if (act==0): next_plane_params[3] += self.action_step
+        # if (act==1): next_plane_params[3] -= self.action_step
+
         # theta x+ (param a)
-        if (act==0): next_plane_params[0] += 1
+        if (act==0): next_plane_params[0] += self.action_step
         # theta y+ (param b)
-        if (act==1): next_plane_params[1] += 1
+        if (act==1): next_plane_params[1] += self.action_step
         # theta z+ (param c)
-        if (act==2): next_plane_params[2] += 1
+        if (act==2): next_plane_params[2] += self.action_step
         # dist d+
-        if (act==3): next_plane_params[3] += 1
+        if (act==3): next_plane_params[3] += self.action_step
 
         # theta x- (param a)
-        if (act==4): next_plane_params[0] -= 1
+        if (act==4): next_plane_params[0] -= self.action_step
         # theta y- (param b)
-        if (act==5): next_plane_params[1] -= 1
+        if (act==5): next_plane_params[1] -= self.action_step
         # theta z- (param c)
-        if (act==6): next_plane_params[2] -= 1
+        if (act==6): next_plane_params[2] -= self.action_step
         # dist d-
-        if (act==7): next_plane_params[3] -= 1
+        if (act==7): next_plane_params[3] -= self.action_step
         # ---------------------------------------------------------------------
         # get the new plane using new params result from taking the action
         new_plane = Plane(*getPlane(self.sitk_image,
@@ -242,39 +269,72 @@ class MedicalPlayer(gym.Env):
                                     next_plane_params,
                                     self._plane_size,
                                     spacing=self.spacing))
+        # ---------------------------------------------------------------------
         # check if the screen is not full of zeros (background)
         go_out = checkBackgroundRatio(new_plane, min_pixel_val=0.5, ratio=0.8)
         # also check if go out (sampling from outside the volume)
         # by checking if the new origin
         if not go_out:
             go_out = checkOriginLocation(self.sitk_image,new_plane.origin)
-        # punish -1 reward if the agent tries to go out and keep same plane
+        # also check if plane parameters got very high
+        if not go_out:
+            go_out = checkParamsBound(new_plane.params,
+                                      self._groundTruth_plane.params)
+
+        # punish lowest reward if the agent tries to go out and keep same plane
         if go_out:
-            self.reward = -1
+            self.reward = -3 # lowest possible reward
             new_plane = self._plane
             # self.terminal = True # end episode and restart
         else:
-            self.reward = self._calc_reward(self._plane.points, new_plane.points)
+            self.reward = self._calc_reward_points(self._plane.points,
+                                                   new_plane.points)
+            # self.reward = self._calc_reward_params(self._plane.params,
+            #                                        new_plane.params)
+            # threshold reward between -1 and 1
+            # self.reward = np.sign(self.reward)
+            self.reward /= self.action_step
 
+        # ---------------------------------------------------------------------
         # update screen, reward ,location, terminal
         self._plane = new_plane
         self._screen = self._current_state()
+
         self.cur_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
-                                             self._plane.points)
+                                             new_plane.points)
+        # self.cur_dist = calcDistTwoParams(self._groundTruth_plane.params,
+        #                                   self._plane.params)
+
         # store results in memory
         self._update_history()
+
+        if self._oscillate:
+            self.action_step = self.action_step/2
+            self._clear_history()
+            if self.action_step<0.5:
+                self.terminal = True
+                if self.cur_dist<=0.5: self.num_success.feed(1)
+
         # termination conditon for train/test
         if self.train:
-            if self.cur_dist<0.2:
+            if self.cur_dist<0.5:
                 self.terminal = True
                 self.num_success.feed(1)
-        else:
-            if self.cur_dist<0.2:
-                self.terminal = True
-                self.num_success.feed(1)
-            # # check if agent oscillates
-            # if self._oscillate: self.terminal = True
-            # if self.cur_dist<1: self.num_success.feed(1)
+        #     # also terminate current episode if it oscillates
+        #     if (not self.terminal) and self._oscillate:
+        #         self.action_step = self.action_step/2
+        #         self._clear_history()
+        #         if self.action_step<0.5:
+        #             self.terminal = True
+        #             if self.cur_dist<0.5: self.num_success.feed(1)
+        # else:
+        #     # check if agent oscillates during test
+        #     if self._oscillate:
+        #         self.action_step = self.action_step/2
+        #         self._clear_history()
+        #         if self.action_step<0.5:
+        #             self.terminal = True
+        #             if self.cur_dist<1: self.num_success.feed(1)
 
         # render screen if viz is on
         with _ALE_LOCK:
@@ -290,13 +350,13 @@ class MedicalPlayer(gym.Env):
         distance_error = self.cur_dist
         self.current_episode_score.feed(self.reward)
 
-        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error}
+        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error, 'filename':self.filename}
 
-        # this done in exp replay
-        # if self.terminal:   self.reset()
-
-        # threshold reward between -1 and 1
-        self.reward = np.sign(self.reward)
+        ## debug
+        # logger.info('action_step {}'.format(self.action_step))
+        # logger.info('plane.params {}'.format(self._plane.params))
+        # logger.info('cur_dist {}'.format(self.cur_dist))
+        # logger.info('reward {}'.format(self.reward))
 
         return self._current_state(), self.reward, self.terminal, info
 
@@ -308,9 +368,25 @@ class MedicalPlayer(gym.Env):
         """
         return self._plane.grid
 
+
+    from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_DOWN
+
+
+    def _clear_history(self):
+        self._params_history = list([(0,0,0,0)]) * self._history_length
+        self._loc_history = [(0,) * self.dims] * self._history_length
+        self._dist_history = [0] * self._history_length
+
+
     def _update_history(self):
         ''' update history buffer with current state
         '''
+        # update location history
+        self._loc_history[:-1] = self._loc_history[1:]
+        loc = self._plane.origin
+        self._loc_history[-1] = (np.around(loc[0],decimals=2),
+                                 np.around(loc[1],decimals=2),
+                                 np.around(loc[2],decimals=2))
         # update distance history
         self._dist_history[:-1] = self._dist_history[1:]
         self._dist_history[-1] = self.cur_dist
@@ -319,25 +395,41 @@ class MedicalPlayer(gym.Env):
         self._params_history[-1] = self.cur_dist
         # TODO: update q-value history
 
-    def _calc_reward(self, prev_points, next_points):
+    def _calc_reward_points(self, prev_points, next_points):
         ''' Calculate the new reward based on the euclidean distance to the target plane
         '''
         prev_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
                                          prev_points)
         next_dist = calcMaxDistTwoPlanes(self._groundTruth_plane.points,
                                          next_points)
+
+        return prev_dist - next_dist
+
+    def _calc_reward_params(self, prev_params, next_params):
+        ''' Calculate the new reward based on the euclidean distance to the target plane
+        '''
+
+        prev_dist = calcDistTwoParams(self._groundTruth_plane.params,
+                                         prev_params)
+        next_dist = calcDistTwoParams(self._groundTruth_plane.params,
+                                         next_params)
+
         return prev_dist - next_dist
 
     @property
     def _oscillate(self):
         ''' Return True if the agent is stuck and oscillating
         '''
-        counter = Counter(self._dist_history)
+        counter = Counter(self._loc_history)
         freq = counter.most_common()
 
-        if freq[0][0] == (0,0,0,0):
+        # logger.info(str(self._loc_history))
+        # logger.info(counter)
+        # logger.info(freq)
+
+        if freq[0][0] == (0,) * self.dims:
             return False
-        elif (freq[0][1]>3):
+        elif (freq[0][1]>4):
             return True
 
     def get_action_meanings(self):
@@ -381,18 +473,21 @@ class MedicalPlayer(gym.Env):
         img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
         # rescale image
         # INTER_NEAREST, INTER_LINEAR, INTER_AREA, INTER_CUBIC, INTER_LANCZOS4
-        scale_x = 2
-        scale_y = 2
+        scale_x = 4
+        scale_y = 4
         img = cv2.resize(img,
                          (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
                          interpolation=cv2.INTER_LINEAR)
         # skip if there is a viewer open
-        if self.viewer is None:
-            self.viewer = SimpleImageViewer(arr=img,
-                                            scale_x=1,
-                                            scale_y=1,
-                                            filepath=self.filename)
-            self.gif_buffer = []
+        # if self.viewer is None:
+        #     self.viewer = SimpleImageViewer(arr=img,
+        #                                     scale_x=1,
+        #                                     scale_y=1,
+        #                                     filepath=self.filename)
+        #     self.gif_buffer = []
+
+        # display image
+        self.viewer.draw_image(img)
         # display info
         color = (0,255,0,255) if self.reward>0 else (255,0,0,255)
         text = 'dist error ' + str(round(self.cur_dist,3)) + 'mm'
@@ -419,6 +514,7 @@ class MedicalPlayer(gym.Env):
         # render and wait (viz) time between frames
         self.viewer.render()
         # time.sleep(self.viz)
+        # time.sleep(2)
         # save gif
         if self.savegif:
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
@@ -478,8 +574,8 @@ class FrameStack(gym.Wrapper):
         self.frames.append(ob)
         return self._observation()
 
-    def _step(self, action):
-        ob, reward, done, info = self.env.step(action)
+    def step(self, action, qvalues):
+        ob, reward, done, info = self.env.step(action,qvalues)
         self.frames.append(ob)
         return self._observation(), reward, done, info
 

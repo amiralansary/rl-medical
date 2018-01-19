@@ -4,6 +4,7 @@
 # Author: Amir Alansary <amiralansary@gmail.com>
 
 import os
+import sys
 import six
 import random
 import threading
@@ -31,6 +32,7 @@ from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
 # from tensorpack.RL.envbase import DiscreteActionSpace, RLEnvironment
 
+from IPython.core.debugger import set_trace
 
 
 from viewer import SimpleImageViewer
@@ -153,6 +155,7 @@ class MedicalPlayer(gym.Env):
         self._image, self._target_loc, self.filepath, self.spacing = next(self.sampled_files)
         self.filename = os.path.basename(self.filepath)
 
+        self.action_step = 8
 
         # image volume size
         self._image_dims = self._image.dims
@@ -221,7 +224,9 @@ class MedicalPlayer(gym.Env):
 
         # UP Z+
         if (act==0):
-            next_location = (current_loc[0],current_loc[1],current_loc[2]+1)
+            next_location = (current_loc[0],
+                             current_loc[1],
+                             round(current_loc[2]+self.action_step))
             if (next_location[2]>=self._image_dims[2]):
                 # print(' trying to go out the image Z+ ',)
                 next_location = current_loc
@@ -229,7 +234,9 @@ class MedicalPlayer(gym.Env):
 
         # FORWARD Y+
         if (act==1):
-            next_location = (current_loc[0],current_loc[1]+1,current_loc[2])
+            next_location = (current_loc[0],
+                             round(current_loc[1]+self.action_step),
+                             current_loc[2])
             if (next_location[1]>=self._image_dims[1]):
                 # print(' trying to go out the image Y+ ',)
                 next_location = current_loc
@@ -237,7 +244,9 @@ class MedicalPlayer(gym.Env):
 
         # RIGHT X+
         if (act==2):
-            next_location = (current_loc[0]+1,current_loc[1],current_loc[2])
+            next_location = (round(current_loc[0]+self.action_step),
+                             current_loc[1],
+                             current_loc[2])
             if (next_location[0]>=self._image_dims[0]):
                 # print(' trying to go out the image X+ ',)
                 next_location = current_loc
@@ -245,7 +254,9 @@ class MedicalPlayer(gym.Env):
 
         # LEFT X-
         if (act==3):
-            next_location = (current_loc[0]-1,current_loc[1],current_loc[2])
+            next_location = (round(current_loc[0]-self.action_step),
+                             current_loc[1],
+                             current_loc[2])
             if (next_location[0]<=0):
                 # print(' trying to go out the image X- ',)
                 next_location = current_loc
@@ -253,7 +264,9 @@ class MedicalPlayer(gym.Env):
 
         # BACKWARD Y-
         if (act==4):
-            next_location = (current_loc[0],current_loc[1]-1,current_loc[2])
+            next_location = (current_loc[0],
+                             round(current_loc[1]-self.action_step),
+                             current_loc[2])
             if (next_location[1]<=0):
                 # print(' trying to go out the image Y- ',)
                 next_location = current_loc
@@ -261,7 +274,9 @@ class MedicalPlayer(gym.Env):
 
         # DOWN Z-
         if (act==5):
-            next_location = (current_loc[0],current_loc[1],current_loc[2]-1)
+            next_location = (current_loc[0],
+                             current_loc[1],
+                             round(current_loc[2]-self.action_step))
             if (next_location[2]<=0):
                 # print(' trying to go out the image Z- ',)
                 next_location = current_loc
@@ -283,18 +298,26 @@ class MedicalPlayer(gym.Env):
         # update history buffer with new location and qvalues
         self._update_history()
 
-        # logger.info('current distance = {}'.format(self.cur_dist))
-        if self.train:
-            # if (np.array(self._location)==np.array(self._target_loc)).all():
-            if self.cur_dist<1:
-                self.terminal = True
-                self.num_success.feed(1)
-        else:
-            # check if agent oscillates
-            if self._oscillate:
+        if self._oscillate:
+            self.action_step = self.action_step/2
+            self._clear_history()
+            if self.action_step<0.2:
                 self.terminal = True
                 self._location = self.getBestLocation()
-                if self.cur_dist<1: self.num_success.feed(1)
+                if self.cur_dist<=0.5: self.num_success.feed(1)
+
+        # # logger.info('current distance = {}'.format(self.cur_dist))
+        # if self.train:
+        #     # if (np.array(self._location)==np.array(self._target_loc)).all():
+        #     if self.cur_dist<1:
+        #         self.terminal = True
+        #         self.num_success.feed(1)
+        # else:
+        #     # check if agent oscillates
+        #     if self._oscillate:
+        #         self.terminal = True
+        #         self._location = self.getBestLocation()
+        #         if self.cur_dist<1: self.num_success.feed(1)
 
         # render screen if viz is on
         with _ALE_LOCK:
@@ -324,7 +347,8 @@ class MedicalPlayer(gym.Env):
         last_qvalues_history = self._qvalues_history[-4:]
         last_loc_history = self._loc_history[-4:]
         best_qvalues = np.max(last_qvalues_history, axis=1)
-        best_idx = best_qvalues.argmax()
+        # best_idx = best_qvalues.argmax()
+        best_idx = best_qvalues.argmin()
         best_location = last_loc_history[best_idx]
 
         # logger.info('qvalues history {}'.format(self._qvalues_history))
@@ -335,6 +359,12 @@ class MedicalPlayer(gym.Env):
         # logger.info('best_location {}'.format(best_location))
 
         return best_location
+
+    def _clear_history(self):
+        ''' clear history buffer with current state
+        '''
+        self._loc_history = [(0,) * self.dims] * self._history_length
+        self._qvalues_history = [(0,) * self.actions] * self._history_length
 
     def _update_history(self):
         ''' update history buffer with current state
@@ -412,10 +442,12 @@ class MedicalPlayer(gym.Env):
         freq = counter.most_common()
 
         if freq[0][0] == (0,0,0):
-            return False
+            if (freq[1][1]>3):
+                return True
+            else:
+                return False
         elif (freq[0][1]>3):
             return True
-
 
     def get_action_meanings(self):
         ''' return array of integers for actions'''
@@ -471,18 +503,18 @@ class MedicalPlayer(gym.Env):
         self.viewer.draw_image(img)
         # draw a transparent circle around target point with variable radius
         # based on the difference z-direction
-        diff_z = scale_x * scale_y * abs(current_point[2]-target_point[2])
+        diff_z = scale_x * abs(current_point[2]-target_point[2])
         self.viewer.draw_circle(radius = diff_z,
                                 pos_x = scale_x*target_point[0],
                                 pos_y = scale_y*target_point[1],
                                 color = (1.0,0.0,0.0,0.2))
         # draw target point
-        self.viewer.draw_circle(radius = scale_x * scale_y * 1,
+        self.viewer.draw_circle(radius = scale_x * 1,
                                 pos_x = scale_x*target_point[0],
                                 pos_y = scale_y*target_point[1],
                                 color = (1.0,0.0,0.0,1.0))
         # draw current point
-        self.viewer.draw_circle(radius = scale_x * scale_y * 1,
+        self.viewer.draw_circle(radius = scale_x * 1,
                                 pos_x = scale_x * current_point[0],
                                 pos_y = scale_y * current_point[1],
                                 color = (0.0,0.0,1.0,1.0))
@@ -499,15 +531,16 @@ class MedicalPlayer(gym.Env):
         if self.savegif:
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             data = image_data.get_data('RGB', image_data.width * 3)
-            arr = np.array([int(string_i) for string_i in data])
-            arr = np.reshape(arr,(image_data.height, image_data.width, -1))
-            #.transpose(1,0,2)
-            im = Image.fromarray(arr.astype('uint8'))
+            # set_trace()
+            arr = np.array(bytearray(data)).astype('uint8')
+            arr = np.flip(np.reshape(arr,(image_data.height, image_data.width, -1)),0)
+            im = Image.fromarray(arr)
             self.gif_buffer.append(im)
 
-            if self.terminal:
+            if not self.terminal:
                 gifname = self.filename.split('.')[0] + '.gif'
                 self.viewer.savegif(gifname,arr=self.gif_buffer, duration=self.viz)
+        # sys.exit()
 
 
 

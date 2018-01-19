@@ -166,7 +166,7 @@ class trainFiles(object):
             for idx in indexes:
                 sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmark = np.array(sitk_image.TransformPhysicalPointToIndex(self.landmarks_list[idx]))
-                image_filename = self.images_list[idx]
+                image_filename = self.images_list[idx][:-7]
                 yield image, landmark, image_filename
 
     @property
@@ -228,7 +228,7 @@ class trainFiles_cardio_plane(object):
                 sitk_image3d, _ =NiftiImage().decode(self.images_3d_list[idx])
                 sitk_image2ch, _=NiftiImage().decode(self.images_2ch_list[idx])
                 sitk_image4ch, _=NiftiImage().decode(self.images_4ch_list[idx])
-                image_filename = self.images_3d_list[idx]
+                image_filename = self.images_3d_list[idx][:-7]
 
                 yield sitk_image3d, sitk_image2ch, sitk_image4ch, image_filename
 
@@ -303,7 +303,7 @@ class trainFiles_cardio(trainFiles):
             for idx in indexes:
                 sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmark = self.landmarks_list[idx]
-                image_filename = self.images_list[idx]
+                image_filename = self.images_list[idx][:-7]
                 yield image, landmark, image_filename
 
 ###############################################################################
@@ -371,7 +371,7 @@ class trainFiles_fetal_US(trainFiles):
             for idx in indexes:
                 sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmark = self.landmarks_list[idx]
-                image_filename = self.images_list[idx]
+                image_filename = self.images_list[idx][:-7]
                 yield image, landmark, image_filename
 
 
@@ -387,7 +387,7 @@ class trainFiles_fetal_US(trainFiles):
             for idx in indexes:
                 sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmarks = self.all_landmarks_list[idx]
-                image_filename = self.images_list[idx]
+                image_filename = self.images_list[idx][:-7]
                 yield image, landmarks, image_filename
 
 # ===================================================================
