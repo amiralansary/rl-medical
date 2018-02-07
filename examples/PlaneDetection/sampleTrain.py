@@ -31,7 +31,7 @@ def tryint(s):
 
 def listFiles(dirpath, dirnames):
     curpath = os.getcwd()
-    os.chdir(dirpath)
+    os.chdir(os.path.abspath(dirpath))
     f = glob.glob(dirnames)
     f.sort(key=alphanum_key)
     os.chdir(curpath)
@@ -195,8 +195,9 @@ class trainFiles_cardio_plane(object):
 
         # todo make it generic for directories and files with different scenarios
         self.images_3d_list = self._listImages('/3DLV_1mm_iso/')
+        # self.images_3d_list = self._listImages('/3DLV/')
         self.images_2ch_list = self._listImages('/2CH_rreg/')
-        self.images_4ch_list = self._listImages('/4CH_rreg/')
+        self.images_4ch_list = self._listImages('/4CH_rreg_fix_orient/')
 
     def _listImages(self,suffix):
         # extend directory path
@@ -433,7 +434,7 @@ class NiftiImage(object):
             # threshold image between p10 and p98 then re-scale [0-255]
             p0 = np_image.min().astype('float')
             p10 = np.percentile(np_image,10)
-            p98 = np.percentile(np_image,98)
+            p99 = np.percentile(np_image,99)
             p100 = np_image.max().astype('float')
             # logger.info('p0 {} , p5 {} , p10 {} , p90 {} , p98 {} , p100 {}'.format(p0,p5,p10,p90,p98,p100))
             sitk_image = sitk.Threshold(sitk_image,
@@ -442,8 +443,8 @@ class NiftiImage(object):
                                         outsideValue=p10)
             sitk_image = sitk.Threshold(sitk_image,
                                         lower=p0,
-                                        upper=p98,
-                                        outsideValue=p98)
+                                        upper=p99,
+                                        outsideValue=p99)
             sitk_image = sitk.RescaleIntensity(sitk_image,
                                                outputMinimum=0,
                                                outputMaximum=255)

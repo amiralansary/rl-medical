@@ -539,7 +539,8 @@ class MedicalPlayer(gym.Env):
 
             if not self.terminal:
                 gifname = self.filename.split('.')[0] + '.gif'
-                self.viewer.savegif(gifname,arr=self.gif_buffer, duration=self.viz)
+                self.viewer.savegif(gifname,arr=self.gif_buffer,
+                                    duration=self.viz)
         # sys.exit()
 
 

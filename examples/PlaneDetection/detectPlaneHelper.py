@@ -57,6 +57,7 @@ def sampleGrid(sitk_image3d, origin_point,
 
     direction = np.array(sitk_image3d.GetDirection())
     transformation = np.array(direction.reshape(3,3))
+    transformation = np.linalg.inv(transformation)
     points_image3d = points_physical_translated.dot(transformation).astype('int')
 
     # assign indexes outisde the boundary zeros (no negative indexes)
@@ -310,7 +311,7 @@ def calcMaxDistTwoPlanes(points1, points2):
     ''' distance metric between two planes.
     Returns maximum distance between two sets of points.
     '''
-    return max(np.linalg.norm(np.array(points1)-np.array(points2), axis=1))
+    return np.max(np.linalg.norm(np.array(points1)-np.array(points2), axis=1))
 
 def calcDistTwoParams(params1, params2):
     ''' distance metric between two parameters of planes.

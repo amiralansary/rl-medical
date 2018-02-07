@@ -125,8 +125,11 @@ class SimpleImageViewer(object):
         self.window.flip()
 
     def savegif(self,filename=None,arr=None,duration=0):
-        arr[0].save(filename, save_all=True, append_images=arr[1:],
-                    duration=duration)
+        arr[0].save(filename, save_all=True,
+                    append_images=arr[1:],
+                    duration=500, #duration, # number of milliseconds
+                    optimize=True,
+                    quality=95)
 
     def close(self):
         if self.isopen:

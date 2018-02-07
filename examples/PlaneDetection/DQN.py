@@ -47,7 +47,7 @@ from expreplay import ExpReplay
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS UNKNOWN
 BATCH_SIZE = 32
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
-IMAGE_SIZE = (85, 85, 9)#(27, 27, 27)
+IMAGE_SIZE = (85, 85, 9)#(85, 85, 9)#(27, 27, 27)
 FRAME_HISTORY = 4
 ## FRAME SKIP FOR ATARI GAMES
 # ACTION_REPEAT = 4
@@ -66,7 +66,8 @@ EVAL_EPISODE = 50
 # MEDICAL DETECTION ACTION SPACE (UP,FORWARD,RIGHT,LEFT,BACKWARD,DOWN)
 NUM_ACTIONS = None
 # dqn method - double or dual (default: double)
-METHOD = None
+# METHOD = None
+METHOD = 'Dueling'
 
 
 ###############################################################################
@@ -75,9 +76,16 @@ METHOD = None
 TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/train/'
 VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/test/'
 
-logger_dir = os.path.join('train_log',
-                          'test_dist_params_spacing3_max1000_heirarchical16_unsupervised_high_learn_rate')
+# TRAIN_DIR = '/../../../../../../../data/aa16914/cardio_plane_detection/train'
+# VALID_DIR = '/../../../../../../../data/aa16914/cardio_plane_detection/test'
 
+logger_dir = os.path.join('train_log',
+                          # 'test_dist_points_spacing2_max1000_heirarchical08_unsupervised')
+                          'dist_params_multiscale_spacing5_max1000_action_heirarchical40_8_supervised_fix_orient_smooth')
+                          # 'test_dist_points_spacing1_max1000_heirarchical08_unsupervised_ROI151_highLR')
+
+
+SPACING = (5,5,5)
 
 ###############################################################################
 
@@ -87,7 +95,7 @@ def get_player(directory=None, viz=False, train=False, savegif=False):
     # atari max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
                         viz=viz, savegif=savegif, train=train,
-                        spacing=(3,3,3), max_num_frames=1000)
+                        spacing=SPACING, max_num_frames=1000)
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
@@ -151,8 +159,8 @@ def get_config():
                 every_k_steps=10000 // UPDATE_FREQ),
             expreplay,
             ScheduledHyperParamSetter('learning_rate',
-                                      # [(60, 4e-4), (100, 2e-4)]),
-                                       [(30, 1e-2), (60, 1e-3), (85, 1e-4), (95, 1e-5)]),
+                                      [(60, 4e-4), (100, 2e-4)]),
+                                        # [(30, 1e-2), (60, 1e-3), (85, 1e-4), (95, 1e-5)]),
             ScheduledHyperParamSetter(
                 ObjAttrParam(expreplay, 'exploration'),
                 # 1->0.1 in the first million steps
@@ -195,7 +203,9 @@ if __name__ == '__main__':
     # ROM_FILE = args.rom
     METHOD = args.algo
     # set num_actions
-    NUM_ACTIONS = MedicalPlayer(directory=TRAIN_DIR,screen_dims=IMAGE_SIZE).action_space.n
+    NUM_ACTIONS = MedicalPlayer(directory=TRAIN_DIR,
+                                screen_dims=IMAGE_SIZE,
+                                spacing=SPACING).action_space.n
     # NUM_ACTIONS = MedicalPlayer(ROM_FILE).get_action_space().num_actions()
     # logger.info("ROM: {}, Num Actions: {}".format(ROM_FILE, NUM_ACTIONS))
 
@@ -207,7 +217,7 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue']))
         if args.task == 'play':
-            play_n_episodes(get_player(directory=TRAIN_DIR,viz=0.01,
+            play_n_episodes(get_player(directory=VALID_DIR,viz=0.01,
                                        savegif=args.savegif), pred, 100)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)

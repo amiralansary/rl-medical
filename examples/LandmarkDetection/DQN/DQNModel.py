@@ -161,7 +161,7 @@ class Model3D(ModelDesc):
         summary.add_moving_summary(max_pred_reward)
 
         with tf.variable_scope('target'):
-            targetQ_predict_value = self.get_DQN_prediction(next_state)    # NxA
+            targetQ_predict_value = self.get_DQN_prediction(next_state) # NxA
 
         if self.method != 'Double':
             # DQN
