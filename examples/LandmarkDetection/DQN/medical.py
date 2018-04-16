@@ -3,6 +3,16 @@
 # File: medical.py
 # Author: Amir Alansary <amiralansary@gmail.com>
 
+import csv
+import itertools
+
+def warn(*args, **kwargs):
+    pass
+import warnings
+warnings.warn = warn
+warnings.simplefilter("ignore", category=PendingDeprecationWarning)
+
+
 import os
 import sys
 import six
@@ -21,7 +31,6 @@ from PIL import Image
 import gym
 from gym import spaces
 
-# from gym.envs.classic_control import rendering
 try:
     import pyglet
 except ImportError as e:
@@ -30,12 +39,8 @@ except ImportError as e:
 
 from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
-# from tensorpack.RL.envbase import DiscreteActionSpace, RLEnvironment
 
 from IPython.core.debugger import set_trace
-
-
-from viewer import SimpleImageViewer
 from sampleTrain import *
 
 
@@ -54,7 +59,7 @@ class MedicalPlayer(gym.Env):
     an observation and a reward."""
 
     def __init__(self, directory=None, viz=False, train=False, files_list=None,
-                 screen_dims=(27,27,27), history_length=16,
+                 screen_dims=(27,27,27), history_length=16, multiscale=True,
                  max_num_frames=0, savegif=False):
         """
         :param train_directory: environment or game name
@@ -67,8 +72,32 @@ class MedicalPlayer(gym.Env):
         :param nullop_start: start with random number of null ops
         :param location_history_length: consider lost of lives as end of
             episode (useful for training)
-        :max_num_frames: maximum number of frames per episode.
+        :max_num_frames: maximum numbe0r of frames per episode.
         """
+        # python DQN_midl2018.py --task play --gpu 0 --algo DuelingDouble --load train_log/DuelDoubleDQN_multiscale_brain_mri_point_ac_ROI_45_45_45_midl2018/model-350000
+
+
+        # ######################################################################
+        # ## generate evaluation results from 19 different points
+        # ## save results in csv file
+        # self.csvfile = 'DuelDoubleDQN_multiscale_brain_mri_point_pc_ROI_45_45_45_midl2018.csv'
+        # if not train:
+        #     with open(self.csvfile, 'w') as outcsv:
+        #         fields = ["filename", "dist_error"]
+        #         writer = csv.writer(outcsv)
+        #         writer.writerow(map(lambda x: x, fields))
+        #
+        # x = [0.5,0.25,0.75]
+        # y = [0.5,0.25,0.75]
+        # z = [0.5,0.25,0.75]
+        # self.start_points = []
+        # for combination in itertools.product(x, y, z):
+        #     if 0.5 in combination: self.start_points.append(combination)
+        # self.start_points = itertools.cycle(self.start_points)
+        # self.count_points = 0
+        # self.total_loc = []
+        # ######################################################################
+
         super(MedicalPlayer, self).__init__()
 
         self.reset_stat()
@@ -86,6 +115,8 @@ class MedicalPlayer(gym.Env):
         # image dimension (2D/3D)
         self.screen_dims = screen_dims
         self.dims = len(self.screen_dims)
+        # multi-scale agent
+        self.multiscale = multiscale
 
         if self.dims == 2:
             self.width, self.height = screen_dims
@@ -104,30 +135,24 @@ class MedicalPlayer(gym.Env):
             if self.viz and isinstance(self.viz, float):
                 self.viewer = None
                 self.gif_buffer = []
-
         # stat counter to store current score or accumlated reward
         self.current_episode_score = StatCounter()
-
         # get action space and minimal action set
         self.action_space = spaces.Discrete(6) # change number actions here
         self.actions = self.action_space.n
         self.observation_space = spaces.Box(low=0, high=255,
                                             shape=self.screen_dims)
-
         # history buffer for storing last locations to check oscilations
         self._history_length = history_length
         self._loc_history = [(0,) * self.dims] * self._history_length
         self._qvalues_history = [(0,) * self.actions] * self._history_length
-
         # add your data loader here
-        self.files = filesListFetalUSLandmark(directory,files_list)
-        # self.files = filesFetalUSLandmark(directory)
-        # self.files = filesCardioLandmark(directory)
-
+        # self.files = filesListBrainMRLandmark(directory,files_list)
+        # self.files = filesListFetalUSLandmark(directory,files_list)
+        self.files = filesListCardioMRLandmark(directory,files_list)
         # prepare file sampler
         self.filepath = None
         self.sampled_files = self.files.sample_circular()
-
         # restart episode
         self._restart_episode()
 
@@ -148,35 +173,63 @@ class MedicalPlayer(gym.Env):
         self.new_random_game()
 
     def new_random_game(self):
-        # print('\n============== new game ===============\n')
         self.terminal = False
         self.viewer = None
-        # sample a new image
+        # ######################################################################
+        # ## generate evaluation results from 19 different points
+        # if self.count_points ==0:
+        #     print('\n============== new game ===============\n')
+        #     # save results
+        #     if self.total_loc:
+        #         with open(self.csvfile, 'a') as outcsv:
+        #             fields= [self.filename, self.cur_dist]
+        #             writer = csv.writer(outcsv)
+        #             writer.writerow(map(lambda x: x, fields))
+        #         self.total_loc = []
+        #     # sample a new image
+        #     self._image, self._target_loc, self.filepath, self.spacing = next(self.sampled_files)
+        #     scale = next(self.start_points)
+        #     self.count_points +=1
+        # else:
+        #     self.count_points += 1
+        #     logger.info('count_points {}'.format(self.count_points))
+        #     scale = next(self.start_points)
+        #
+        # x = int(scale[0] * self._image.dims[0])
+        # y = int(scale[1] * self._image.dims[1])
+        # z = int(scale[2] * self._image.dims[2])
+        # logger.info('starting point {}-{}-{}'.format(x,y,z))
+        # ######################################################################
+
+        # # sample a new image
         self._image, self._target_loc, self.filepath, self.spacing = next(self.sampled_files)
         self.filename = os.path.basename(self.filepath)
 
-        self.action_step = 8
-
+        # multiscale (e.g. start with 3 -> 2 -> 1)
+        if self.multiscale:
+            self.action_step = 6
+            self.xscale = 2
+            self.yscale = 2
+            self.zscale = 2
+        else:
+            self.action_step = 1
+            self.xscale = 1
+            self.yscale = 1
+            self.zscale = 1
         # image volume size
         self._image_dims = self._image.dims
 
-        # logger.info("filepath {} - image dims {} - target_loc {} ".format(self.filepath, self._image.dims, self._target_loc))
-
-        # self._loc_dims = np.array((self.screen_dims[0]+1, self.screen_dims[1]+1, self.screen_dims[2]+1, self._image_dims[0]-self.screen_dims[0]-1, self._image_dims[1]-self.screen_dims[1]-1, self._image_dims[2]-self.screen_dims[2]-1))
-
-        # x = self.rng.randint(self._loc_dims[0]+1, self._loc_dims[3]-1)
-        # y = self.rng.randint(self._loc_dims[1]+1, self._loc_dims[4]-1)
-        # z = self.rng.randint(self._loc_dims[2]+1, self._loc_dims[5]-1)
-
+        #######################################################################
+        ## select random starting point
         # for random point selection - skip border thickness
         if self.train:
+            skip_thickness = ((int)(self._image_dims[0]/5),
+                              (int)(self._image_dims[1]/5),
+                              (int)(self._image_dims[2]/5))
+        else:
             skip_thickness = ((int)(self._image_dims[0]/4),
                               (int)(self._image_dims[1]/4),
                               (int)(self._image_dims[2]/4))
-        else:
-            skip_thickness = ((int)(self._image_dims[0]/3),
-                              (int)(self._image_dims[1]/3),
-                              (int)(self._image_dims[2]/3))
 
         x = self.rng.randint(0+skip_thickness[0],
                              self._image_dims[0]-skip_thickness[0])
@@ -184,16 +237,15 @@ class MedicalPlayer(gym.Env):
                              self._image_dims[1]-skip_thickness[1])
         z = self.rng.randint(0+skip_thickness[2],
                              self._image_dims[2]-skip_thickness[2])
+        #######################################################################
 
         self._location = (x,y,z)
         self._start_location = (x,y,z)
         self._qvalues = [0,] * self.actions
         self._screen = self._current_state()
-
         self.cur_dist = self.calcDistance(self._location,
                                           self._target_loc,
                                           self.spacing)
-
 
     def calcDistance(self, points1, points2, spacing=(1,1,1)):
          ''' calculate the distance between two points in mm'''
@@ -209,20 +261,31 @@ class MedicalPlayer(gym.Env):
           action:
         Returns:
           observation (object):
-            an environment-specific object representing your observation of the environment. For example, pixel data from a camera, joint angles and joint velocities of a robot, or the board state in a board game.
+            an environment-specific object representing your observation of
+            the environment. For example, pixel data from a camera, joint angles
+            and joint velocities of a robot, or the board state in a board game.
           reward (float):
-            amount of reward achieved by the previous action. The scale varies between environments, but the goal is always to increase your total reward.
+            amount of reward achieved by the previous action. The scale varies
+            between environments, but the goal is always to increase your total
+            reward.
           done (boolean):
-            whether it's time to reset the environment again. Most (but not all) tasks are divided up into well-defined episodes, and done being True indicates the episode has terminated. (For example, perhaps the pole tipped too far, or you lost your last life.)
+            whether it's time to reset the environment again. Most (but not all)
+            tasks are divided up into well-defined episodes, and done being True
+            indicates the episode has terminated. (For example, perhaps the pole
+            tipped too far, or you lost your last life.)
           info (dict):
-            diagnostic information useful for debugging. It can sometimes be useful for learning (for example, it might contain the raw probabilities behind the environment's last state change). However, official evaluations of your agent are not allowed to use this for learning.
+            diagnostic information useful for debugging. It can sometimes be
+            useful for learning (for example, it might contain the raw
+            probabilities behind the environment's last state change). However,
+            official evaluations of your agent are not allowed to use this for
+            learning.
         """
         self._qvalues = qvalues
         current_loc = self._location
         self.terminal = False
         go_out = False
 
-        # UP Z+
+        # UP Z+ -----------------------------------------------------------
         if (act==0):
             next_location = (current_loc[0],
                              current_loc[1],
@@ -232,7 +295,7 @@ class MedicalPlayer(gym.Env):
                 next_location = current_loc
                 go_out = True
 
-        # FORWARD Y+
+        # FORWARD Y+ ---------------------------------------------------------
         if (act==1):
             next_location = (current_loc[0],
                              round(current_loc[1]+self.action_step),
@@ -241,8 +304,7 @@ class MedicalPlayer(gym.Env):
                 # print(' trying to go out the image Y+ ',)
                 next_location = current_loc
                 go_out = True
-
-        # RIGHT X+
+        # RIGHT X+ -----------------------------------------------------------
         if (act==2):
             next_location = (round(current_loc[0]+self.action_step),
                              current_loc[1],
@@ -251,8 +313,7 @@ class MedicalPlayer(gym.Env):
                 # print(' trying to go out the image X+ ',)
                 next_location = current_loc
                 go_out = True
-
-        # LEFT X-
+        # LEFT X- -----------------------------------------------------------
         if (act==3):
             next_location = (round(current_loc[0]-self.action_step),
                              current_loc[1],
@@ -261,8 +322,7 @@ class MedicalPlayer(gym.Env):
                 # print(' trying to go out the image X- ',)
                 next_location = current_loc
                 go_out = True
-
-        # BACKWARD Y-
+        # BACKWARD Y- ---------------------------------------------------------
         if (act==4):
             next_location = (current_loc[0],
                              round(current_loc[1]-self.action_step),
@@ -271,8 +331,7 @@ class MedicalPlayer(gym.Env):
                 # print(' trying to go out the image Y- ',)
                 next_location = current_loc
                 go_out = True
-
-        # DOWN Z-
+        # DOWN Z- -----------------------------------------------------------
         if (act==5):
             next_location = (current_loc[0],
                              current_loc[1],
@@ -281,43 +340,51 @@ class MedicalPlayer(gym.Env):
                 # print(' trying to go out the image Z- ',)
                 next_location = current_loc
                 go_out = True
-
+        # ---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # punish -1 reward if the agent tries to go out
         if go_out:
             self.reward = -1
-            # self.terminal = True # end episode and reset
         else:
             self.reward = self._calc_reward(current_loc, next_location)
-
         # update screen, reward ,location, terminal
         self._location = next_location
         self._screen = self._current_state()
+
+        # terminate if the distance is less than 1 during trainig
+        if self.train:
+            if self.cur_dist<=1:
+                self.terminal = True
+                self.num_success.feed(1)
+
+        # update history buffer with new location and qvalues
         self.cur_dist = self.calcDistance(self._location,
                                           self._target_loc,
                                           self.spacing)
-        # update history buffer with new location and qvalues
         self._update_history()
 
+        # check if agent oscillates
         if self._oscillate:
-            self.action_step = self.action_step/2
-            self._clear_history()
-            if self.action_step<0.2:
+            self._location = self.getBestLocation()
+            self._screen = self._current_state()
+            self.cur_dist = self.calcDistance(self._location,
+                                              self._target_loc,
+                                              self.spacing)
+            # multi-scale steps
+            if self.multiscale:
+                if self.xscale > 1:
+                    self.xscale -=1
+                    self.yscale -=1
+                    self.zscale -=1
+                    self.action_step = int(self.action_step / 3)
+                    self._clear_history()
+                # terminate if scale is less than 1
+                else:
+                    self.terminal = True
+                    if self.cur_dist<=1: self.num_success.feed(1)
+            else:
                 self.terminal = True
-                self._location = self.getBestLocation()
-                if self.cur_dist<=0.5: self.num_success.feed(1)
-
-        # # logger.info('current distance = {}'.format(self.cur_dist))
-        # if self.train:
-        #     # if (np.array(self._location)==np.array(self._target_loc)).all():
-        #     if self.cur_dist<1:
-        #         self.terminal = True
-        #         self.num_success.feed(1)
-        # else:
-        #     # check if agent oscillates
-        #     if self._oscillate:
-        #         self.terminal = True
-        #         self._location = self.getBestLocation()
-        #         if self.cur_dist<1: self.num_success.feed(1)
+                if self.cur_dist<=1: self.num_success.feed(1)
 
         # render screen if viz is on
         with _ALE_LOCK:
@@ -335,8 +402,22 @@ class MedicalPlayer(gym.Env):
 
         info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error, 'filename':self.filename}
 
-        # this done in exp replay
-        # if self.terminal:   self.reset()
+        # #######################################################################
+        # ## generate evaluation results from 19 different points
+        # if self.terminal:
+        #     logger.info(info)
+        #     self.total_loc.append(self._location)
+        #     if not(self.count_points == 19):
+        #         self._restart_episode()
+        #     else:
+        #         mean_location = np.mean(self.total_loc,axis=0)
+        #         logger.info('total_loc {} \n mean_location{}'.format(self.total_loc, mean_location))
+        #         self.cur_dist = self.calcDistance(mean_location,
+        #                                           self._target_loc,
+        #                                           self.spacing)
+        #         logger.info('final distance error {} \n'.format(self.cur_dist))
+        #         self.count_points = 0
+        # #######################################################################
 
         return self._current_state(), self.reward, self.terminal, info
 
@@ -350,13 +431,6 @@ class MedicalPlayer(gym.Env):
         # best_idx = best_qvalues.argmax()
         best_idx = best_qvalues.argmin()
         best_location = last_loc_history[best_idx]
-
-        # logger.info('qvalues history {}'.format(self._qvalues_history))
-        # logger.info('best_qvalues {}'.format(best_qvalues))
-        # logger.info('best_idx {}'.format(best_idx))
-
-        # logger.info('location history {}'.format(self._loc_history))
-        # logger.info('best_location {}'.format(best_location))
 
         return best_location
 
@@ -378,46 +452,46 @@ class MedicalPlayer(gym.Env):
 
     def _current_state(self):
         # initialize screen with zeros - all background
-        screen = np.zeros((self.screen_dims))
+        screen = np.zeros((self.screen_dims)).astype(self._image.data.dtype)
         screen_xmin, screen_ymin, screen_zmin = 0, 0 ,0
         screen_xmax, screen_ymax, screen_zmax = self.screen_dims
         # extract boundary locations
-        xmin = self._location[0] - int(self.width/2) - 1
-        xmax = self._location[0] + int(self.width/2)
-        ymin = self._location[1] - int(self.height/2) - 1
-        ymax = self._location[1] + int(self.height/2)
-        zmin = self._location[2] - int(self.depth/2) - 1
-        zmax = self._location[2] + int(self.depth/2)
-
-        # logger.info('image dims {}'.format(self._image_dims))
-        # logger.info('before xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(xmin,xmax,ymin,ymax,zmin,zmax))
-        # logger.info('before screen xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(screen_xmin,screen_xmax,screen_ymin,screen_ymax,screen_zmin,screen_zmax))
+        if self.xscale % 2:
+            xmin = self._location[0] - int(self.width  * self.xscale / 2) - 1
+            xmax = self._location[0] + int(self.width  * self.xscale / 2)
+            ymin = self._location[1] - int(self.height * self.yscale / 2) - 1
+            ymax = self._location[1] + int(self.height * self.yscale / 2)
+            zmin = self._location[2] - int(self.depth  * self.zscale / 2) - 1
+            zmax = self._location[2] + int(self.depth  * self.zscale / 2)
+        else:
+            xmin = self._location[0] - round(self.width  * self.xscale / 2)
+            xmax = self._location[0] + round(self.width  * self.xscale / 2)
+            ymin = self._location[1] - round(self.height * self.yscale / 2)
+            ymax = self._location[1] + round(self.height * self.yscale / 2)
+            zmin = self._location[2] - round(self.depth  * self.zscale / 2)
+            zmax = self._location[2] + round(self.depth  * self.zscale / 2)
 
         # check if they violate image boundary and fix it
         if xmin<0:
-            screen_xmax = self.screen_dims[0]-abs(xmin)
             xmin = 0
+            screen_xmin = screen_xmax - len(np.arange(xmin,xmax,self.xscale))
         if ymin<0:
-            screen_ymax = self.screen_dims[1]-abs(ymin)
             ymin = 0
+            screen_ymin = screen_ymax - len(np.arange(ymin,ymax,self.yscale))
         if zmin<0:
-            screen_zmax = self.screen_dims[2]-abs(zmin)
             zmin = 0
+            screen_zmin = screen_zmax - len(np.arange(zmin,zmax,self.zscale))
         if xmax>self._image_dims[0]:
-            screen_xmin = xmax-self._image_dims[0]
             xmax = self._image_dims[0]
+            screen_xmax = len(np.arange(xmin,xmax,self.xscale))
         if ymax>self._image_dims[1]:
-            screen_ymin = ymax-self._image_dims[1]
             ymax = self._image_dims[1]
+            screen_ymax = len(np.arange(ymin,ymax,self.yscale))
         if zmax>self._image_dims[2]:
-            screen_zmin = zmax-self._image_dims[2]
             zmax = self._image_dims[2]
+            screen_zmax = len(np.arange(zmin,zmax,self.zscale))
 
-        # logger.info('after xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(xmin,xmax,ymin,ymax,zmin,zmax))
-        # logger.info('after screen xmin {} xmax {} ymin {} ymax {} zmin {} zmax {}'.format(screen_xmin,screen_xmax,screen_ymin,screen_ymax,screen_zmin,screen_zmax))
-
-        # update current screen
-        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[xmin:xmax, ymin:ymax, zmin:zmax]
+        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[xmin:xmax:self.xscale, ymin:ymax:self.yscale, zmin:zmax:self.zscale]
 
         return screen
 
@@ -484,16 +558,19 @@ class MedicalPlayer(gym.Env):
         target_point = self._target_loc
         # get image and convert it to pyglet
         plane = self.get_plane(current_point[2])# z-plane
+        # plane = np.squeeze(self._current_state()[:,:,13])
         img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
         # rescale image
         # INTER_NEAREST, INTER_LINEAR, INTER_AREA, INTER_CUBIC, INTER_LANCZOS4
-        scale_x=2.5
-        scale_y=2.5
+        scale_x=2
+        scale_y=2
+        
         img = cv2.resize(img,
                          (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
                          interpolation=cv2.INTER_LINEAR)
         # skip if there is a viewer open
-        if self.viewer is None:
+        if (not self.viewer) and self.viz:
+            from viewer import SimpleImageViewer
             self.viewer = SimpleImageViewer(arr=img,
                                             scale_x=1,
                                             scale_y=1,
@@ -524,6 +601,10 @@ class MedicalPlayer(gym.Env):
 
         self.viewer.display_text(text, color=color, x=10,
                                  y=img.shape[0])
+        text = 'spacing ' + str(self.xscale)
+        self.viewer.display_text(text, color=color, x=10,
+                                 y=30)
+
         # render and wait (viz) time between frames
         self.viewer.render()
         # time.sleep(self.viz)
@@ -531,7 +612,6 @@ class MedicalPlayer(gym.Env):
         if self.savegif:
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             data = image_data.get_data('RGB', image_data.width * 3)
-            # set_trace()
             arr = np.array(bytearray(data)).astype('uint8')
             arr = np.flip(np.reshape(arr,(image_data.height, image_data.width, -1)),0)
             im = Image.fromarray(arr)
@@ -542,8 +622,6 @@ class MedicalPlayer(gym.Env):
                 self.viewer.savegif(gifname,arr=self.gif_buffer,
                                     duration=self.viz)
         # sys.exit()
-
-
 
 class DiscreteActionSpace(object):
 
@@ -575,15 +653,13 @@ class FrameStack(gym.Wrapper):
         self.k = k # history length
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
-        # chan = 1 if len(shp) == 2 else shp[2]
         self._base_dim = len(shp)
         new_shape = shp + (k,)
-        # self.observation_space = spaces.Box(low=0, high=255, shape=(shp[0], shp[1], chan * k))
         self.observation_space = spaces.Box(low=0, high=255, shape=new_shape)
 
     def _reset(self):
         """Clear buffer and re-fill by duplicating the first observation."""
-        ob = self.env.reset()
+        ob = self.env._reset()
         for _ in range(self.k - 1):
             self.frames.append(np.zeros_like(ob))
         self.frames.append(ob)

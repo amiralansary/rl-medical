@@ -1,9 +1,7 @@
-# =============================================================================
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: DQN.py
+# File: viewer.py
 # Author: Amir Alansary <amiralansary@gmail.com>
-# =============================================================================
 
 import os
 import math
@@ -136,5 +134,3 @@ class SimpleImageViewer(object):
             self.isopen = False
     def __del__(self):
         self.close()
-
-

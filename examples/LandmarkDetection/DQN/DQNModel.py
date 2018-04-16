@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # File: DQNModel.py
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
-# Modifies: Amir Alansary <amiralansary@gmail.com>
+# Modified: Amir Alansary <amiralansary@gmail.com>
 
 import abc
 import tensorflow as tf
@@ -67,11 +67,11 @@ class Model(ModelDesc):
         with tf.variable_scope('target'):
             targetQ_predict_value = self.get_DQN_prediction(next_state)    # NxA
 
-        if self.method != 'Double':
-            # DQN
+        if 'Double' not in self.method:
+            # DQN or Dueling
             best_v = tf.reduce_max(targetQ_predict_value, 1)    # N,
         else:
-            # Double-DQN
+            # Double-DQN or DuelingDouble
             next_predict_value = self.get_DQN_prediction(next_state)
             self.greedy_choice = tf.argmax(next_predict_value, 1)   # N,
             predict_onehot = tf.one_hot(self.greedy_choice, self.num_actions, 1.0, 0.0)
@@ -79,11 +79,8 @@ class Model(ModelDesc):
 
         target = reward + (1.0 - tf.cast(isOver, tf.float32)) * self.gamma * tf.stop_gradient(best_v)
 
-        self.cost = tf.clip_by_value(tf.losses.huber_loss(
-                                        target,
-                                        pred_action_value,
-                                        reduction=tf.losses.Reduction.MEAN)
-                                    , -1, 1, name='cost')
+        self.cost = tf.losses.huber_loss(target, pred_action_value,
+                                         reduction=tf.losses.Reduction.MEAN)
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))   # monitor all W
         summary.add_moving_summary(self.cost)
@@ -163,23 +160,19 @@ class Model3D(ModelDesc):
         with tf.variable_scope('target'):
             targetQ_predict_value = self.get_DQN_prediction(next_state) # NxA
 
-        if self.method != 'Double':
-            # DQN
+        if 'Double' not in self.method :
+            # DQN or Dueling
             best_v = tf.reduce_max(targetQ_predict_value, 1)    # N,
         else:
-            # Double-DQN
+            # Double-DQN or DuelingDouble
             next_predict_value = self.get_DQN_prediction(next_state)
             self.greedy_choice = tf.argmax(next_predict_value, 1)   # N,
             predict_onehot = tf.one_hot(self.greedy_choice, self.num_actions, 1.0, 0.0)
             best_v = tf.reduce_sum(targetQ_predict_value * predict_onehot, 1)
 
         target = reward + (1.0 - tf.cast(isOver, tf.float32)) * self.gamma * tf.stop_gradient(best_v)
-
-        self.cost = tf.clip_by_value(tf.losses.huber_loss(
-                                        target,
-                                        pred_action_value,
-                                        reduction=tf.losses.Reduction.MEAN)
-                                    , -1, 1, name='cost')
+        self.cost = tf.losses.huber_loss(target, pred_action_value,
+                                         reduction=tf.losses.Reduction.MEAN)
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))   # monitor all W
         summary.add_moving_summary(self.cost)
