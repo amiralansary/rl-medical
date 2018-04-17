@@ -4,8 +4,8 @@ Automatic detection of anatomical landmarks is an important step for a wide rang
 
 
 <p align="center">
-<img style="float: center;" src="images/framework.png" width="400">
-<img style="float: center;" src="images/actions.png" width="200">
+<img style="float: center;" src="images/framework.png" width="465">
+<img style="float: center;" src="images/actions.png" width="130">
 </p>
 
 ## Usage
