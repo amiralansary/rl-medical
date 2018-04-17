@@ -115,7 +115,7 @@ class SimpleImageViewer(object):
                      anchor_x='left', anchor_y='top'):
         label = pyglet.text.Label(text,
                                   font_name='Ariel', color=color,
-                                  font_size=15, #bold=True,
+                                  font_size=10, #bold=True,
                                   x=x, y=y,
                                   anchor_x=anchor_x, anchor_y=anchor_y)
         label.draw()

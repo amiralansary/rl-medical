@@ -4,6 +4,13 @@
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 # Modified: Amir Alansary <amiralansary@gmail.com>
 
+
+def warn(*args, **kwargs):
+    pass
+import warnings
+warnings.warn = warn
+warnings.simplefilter("ignore", category=PendingDeprecationWarning)
+
 import numpy as np
 
 import os
@@ -22,8 +29,6 @@ import tensorflow as tf
 # from detectPlanePlayer import MedicalPlayer, FrameStack
 from detectPlanePlayerSupervised import MedicalPlayer, FrameStack
 
-
-os.environ['TENSORPACK_TRAIN_API'] = 'v2'   # will become default soon
 
 from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
                         logger, TrainConfig, ModelSaver, PeriodicTrigger,
@@ -45,9 +50,9 @@ from expreplay import ExpReplay
 ###############################################################################
 
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS UNKNOWN
-BATCH_SIZE = 32
+BATCH_SIZE = 256
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
-IMAGE_SIZE = (85, 85, 9)#(85, 85, 9)#(27, 27, 27)
+IMAGE_SIZE = (85, 85, 9) # (85, 85, 9)#(27, 27, 27)
 FRAME_HISTORY = 4
 ## FRAME SKIP FOR ATARI GAMES
 # ACTION_REPEAT = 4
@@ -66,9 +71,9 @@ EVAL_EPISODE = 50
 # MEDICAL DETECTION ACTION SPACE (UP,FORWARD,RIGHT,LEFT,BACKWARD,DOWN)
 NUM_ACTIONS = None
 # dqn method - double or dual (default: double)
-# METHOD = None
-METHOD = 'Dueling'
+METHOD = None
 
+SPACING = (5,5,5)
 
 ###############################################################################
 ###############################################################################
@@ -79,23 +84,29 @@ VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/Pla
 # TRAIN_DIR = '/../../../../../../../data/aa16914/cardio_plane_detection/train'
 # VALID_DIR = '/../../../../../../../data/aa16914/cardio_plane_detection/test'
 
+###############################################################################
+
+data_dir = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/'
+test_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/test_files_fold_1.txt'
+train_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/train_files_fold_1.txt'
+
 logger_dir = os.path.join('train_log',
                           # 'test_dist_points_spacing2_max1000_heirarchical08_unsupervised')
-                          'dist_params_multiscale_spacing5_max1000_action_heirarchical40_8_supervised_fix_orient_smooth')
+                          # 'dist_params_multiscale_spacing5_action_heirarchical40_8_unsupervised_fix_orient_smooth_double_fold_1_large_batch')
                           # 'test_dist_points_spacing1_max1000_heirarchical08_unsupervised_ROI151_highLR')
+                          'test')
 
-
-SPACING = (5,5,5)
 
 ###############################################################################
 
 
-def get_player(directory=None, viz=False, train=False, savegif=False):
+def get_player(directory=None, files_list= None,
+               viz=False, train=False, savegif=False):
 
     # atari max_num_frames = 30000
-    env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
-                        viz=viz, savegif=savegif, train=train,
-                        spacing=SPACING, max_num_frames=1000)
+    env = MedicalPlayer(directory=directory, files_list=files_list,
+                        screen_dims=IMAGE_SIZE, viz=viz, savegif=savegif,
+                        train=train, spacing=SPACING, max_num_frames=1000)
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
@@ -110,8 +121,10 @@ class Model(DQNModel):
     def _get_DQN_prediction(self, image):
         """ image: [0,255]"""
         image = image / 255.0
-        with argscope(Conv3D, nl=PReLU.symbolic_function, use_bias=True), \
-                argscope(LeakyReLU, alpha=0.01):
+        with argscope(Conv3D,
+                      activation=PReLU.symbolic_function,
+                      use_bias=True):
+            #,argscope(LeakyReLU, alpha=0.01):
             l = (LinearWrap(image)
                  .Conv3D('conv0', out_channel=32,
                          kernel_shape=[8,8,3], stride=[4,4,1])
@@ -122,14 +135,15 @@ class Model(DQNModel):
                          kernel_shape=[4,4,3], stride=[1,1,1])
                  .Conv3D('conv3', out_channel=64,
                          kernel_shape=[3,3,3], stride=[1,1,1])
-                 .FullyConnected('fc0', 512, nl=LeakyReLU)())
+                 .FullyConnected('fc0', 512)
+                 .tf.nn.leaky_relu(alpha=0.01)())
         if self.method != 'Dueling':
             Q = FullyConnected('fct', l, self.num_actions, nl=tf.identity)
         else:
             # Dueling DQN
             V = FullyConnected('fctV', l, 1, nl=tf.identity)
             As = FullyConnected('fctA', l, self.num_actions, nl=tf.identity)
-            Q = tf.add(As, V - tf.reduce_mean(As, 1, keep_dims=True))
+            Q = tf.add(As, V - tf.reduce_mean(As, 1, keepdims=True))
         return tf.identity(Q, name='Qvalue')
 
 ###############################################################################
@@ -137,7 +151,8 @@ class Model(DQNModel):
 def get_config():
     expreplay = ExpReplay(
         predictor_io_names=(['state'], ['Qvalue']),
-        player=get_player(directory=TRAIN_DIR, train=True),
+        player=get_player(directory=data_dir, files_list=train_list,
+                          train=True),
         state_shape=IMAGE_SIZE,
         batch_size=BATCH_SIZE,
         memory_size=MEMORY_SIZE,
@@ -168,9 +183,9 @@ def get_config():
                 interp='linear'),
             PeriodicTrigger(
                 Evaluator(nr_eval=EVAL_EPISODE, input_names=['state'],
-                          output_names=['Qvalue'], directory=TRAIN_DIR,
-                          get_player_fn=get_player),
-                every_k_epochs=5),
+                          output_names=['Qvalue'], get_player_fn=get_player,
+                          directory=data_dir, files_list=test_list),
+                every_k_epochs=2),
             HumanHyperParamSetter('learning_rate'),
         ],
         steps_per_epoch=STEPS_PER_EPOCH,
@@ -203,11 +218,12 @@ if __name__ == '__main__':
     # ROM_FILE = args.rom
     METHOD = args.algo
     # set num_actions
-    NUM_ACTIONS = MedicalPlayer(directory=TRAIN_DIR,
+    init_player = MedicalPlayer(directory=data_dir,
+                                files_list=test_list,
                                 screen_dims=IMAGE_SIZE,
-                                spacing=SPACING).action_space.n
-    # NUM_ACTIONS = MedicalPlayer(ROM_FILE).get_action_space().num_actions()
-    # logger.info("ROM: {}, Num Actions: {}".format(ROM_FILE, NUM_ACTIONS))
+                                spacing=SPACING)
+    NUM_ACTIONS = init_player.action_space.n
+    num_validation_files = init_player.files.num_files
 
     if args.task != 'train':
         assert args.load is not None
@@ -217,8 +233,10 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue']))
         if args.task == 'play':
-            play_n_episodes(get_player(directory=VALID_DIR,viz=0.01,
-                                       savegif=args.savegif), pred, 100)
+            play_n_episodes(get_player(directory=data_dir,
+                                       files_list=train_list, viz=0.01,
+                                       savegif=args.savegif),
+                            pred, num_validation_files)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
     else:

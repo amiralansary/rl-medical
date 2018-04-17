@@ -3,13 +3,21 @@
 # File: sampleTrain.py
 # Author: Amir Alansary <amiralansary@gmail.com>
 
+
+
+import warnings
+warnings.simplefilter("ignore", category=ResourceWarning)
+
+
+
 import numpy as np
 import SimpleITK as sitk
 from tensorpack import logger
+from IPython.core.debugger import set_trace
 
 
-__all__ = ['trainFiles', 'trainFiles_cardio', 'trainFiles_fetal_US',
-           'trainFiles_cardio_plane', 'NiftiImage']
+__all__ = ['files', 'filesCardio', 'filesFetalUS', 'filesListBrainMRPlane',
+           'filesCardioPlane', 'filesListCardioMRPlane', 'NiftiImage']
 
 #######################################################################
 ## list file/directory names
@@ -74,8 +82,49 @@ def extractPointsTXT(filename):
     return x,y,z
 
 #######################################################################
+## extract points from vtk file
+def getLandmarksFromVTKFile(file):
+    ''' 0-2 RV insert points
+        1 -> RV lateral wall turning point
+        3 -> LV lateral wall mid-point
+        4 -> apex
+        5-> center of the mitral valve
+    '''
+    with open(file) as fp:
+        landmarks = []
+        for i, line in enumerate(fp):
+            if i == 5:
+                landmarks.append([float(k) for k in line.split()])
+            elif i == 6:
+                landmarks.append([float(k) for k in line.split()])
+            elif i > 6:
+                landmarks = np.asarray(landmarks).reshape((-1,3))
+                landmarks[:,[0, 1]] = -landmarks[:,[0, 1]]
+                return landmarks
 
-class trainFiles(object):
+#######################################################################
+## extract points from txt file
+def getLandmarksFromTXTFile(file):
+    ''' 1->3 Splenium of corpus callosum
+            (outer aspect, inferior tip and inner aspect (1,2,3)),
+        4,5 Genu of corpus callosum (outer and inner aspect (4,5)),
+        6,7 Superior and inferior aspect of pons (6,7),
+        8,16 Superior and inferior aspect cerebellum (8,16),
+        9 Fourth ventricle (9),
+        10->13 Putamen posterior and anterior (10,11)(left), (12,13)(right),
+        14,15 Anterior and posterior commissure (14,15),
+        17,18 Anterior tip of lateral ventricle (left and right) (17,18),
+        19,20 Inferior tip of lateral ventricle (left and right) (19,20)
+    '''
+    with open(file) as fp:
+        landmarks = []
+        for i, line in enumerate(fp):
+            landmarks.append([float(k) for k in line.split(',')])
+        landmarks = np.asarray(landmarks).reshape((-1,3))
+        return landmarks
+#######################################################################
+
+class files(object):
     """ A class for managing train files
 
         Attributes:
@@ -180,7 +229,157 @@ class trainFiles(object):
     #     return np.round(center_of_mass(label_image.data))
 ###############################################################################
 
-class trainFiles_cardio_plane(object):
+class filesListCardioMRPlane(files):
+    """ A class for managing train files for Ozan mri cardio data
+
+        Attributes:
+        directory: input data directo
+    """
+    def __init__(self, directory=None, files_list=None):
+
+        assert directory, 'There is no directory containing training files given'
+        assert files_list, 'There is no directory containing files list'
+
+        self.dir = directory
+        self.files_list = [line.split('\n')[0] for line in open(files_list)]
+        # todo make it generic for directories and files with different scenarios
+        # self.images_3d_list = self._listImages('/3DLV/')
+        self.images_3d_list = self._listImages('/3DLV_iso_1mm/')
+        self.images_2ch_list = self._listImages('/2CH_rreg/')
+        self.images_4ch_list = self._listImages('/4CH_rreg_fix_orientation/')
+        self.landmarks_list = self._listLandmarks('/landmarks_new/')
+
+
+    @property
+    def num_files(self):
+        return len(self.files_list)
+
+    def _listImages(self, suffix):
+        # extend directory path
+        current_dir = self.dir + suffix
+        image_files = []
+        for filename in self.files_list:
+            file_path = os.path.join(current_dir, filename) #+ '.nii.gz')
+            image_files.append(file_path)
+
+        return image_files
+
+    def _listLandmarks(self, suffix):
+        # extend directory path
+        current_dir = self.dir + suffix
+        landmark_files = []
+        for filename in self.files_list:
+            filename = filename[:-7] + '.vtk'
+            file_path = os.path.join(current_dir, filename)
+            landmark_files.append(file_path)
+
+        return landmark_files
+
+
+    def sample_circular(self,shuffle=False):
+        """ return a random sampled ImageRecord from the list of files
+        """
+        if shuffle:
+            indexes = rng.choice(x,len(x),replace=False)
+        else:
+            indexes = np.arange(self.num_files)
+
+        while True:
+            for idx in indexes:
+                # print('============================================')
+                # print('images_3d_list[idx] {} \nimages_2ch_list[idx] {} \nimages_4ch_list[idx] {}'.format(self.images_3d_list[idx].split('/')[-1],self.images_2ch_list[idx].split('/')[-1],self.images_4ch_list[idx].split('/')[-1]))
+
+                sitk_image3d, _ =NiftiImage().decode(self.images_3d_list[idx])
+                sitk_image2ch, _=NiftiImage().decode(self.images_2ch_list[idx])
+                sitk_image4ch, _=NiftiImage().decode(self.images_4ch_list[idx])
+                landmarks = getLandmarksFromVTKFile(self.landmarks_list[idx])
+                filename = self.images_3d_list[idx][:-7]
+                # transform landmarks to image coordinates
+                landmarks = [sitk_image3d.TransformPhysicalPointToContinuousIndex(point) for point in landmarks]
+
+                yield sitk_image3d, sitk_image2ch, sitk_image4ch, landmarks, filename
+
+
+
+###############################################################################
+
+class filesListBrainMRPlane(files):
+    """ A class for managing train files for Ozan mri cardio data
+
+        Attributes:
+        directory: input data directo
+    """
+    def __init__(self, directory=None, files_list=None):
+
+        assert directory, 'There is no directory containing training files given'
+        assert files_list, 'There is no directory containing files list'
+
+        self.dir = directory
+        self.files_list = [line.split('\n')[0] for line in open(files_list)]
+        # todo make it generic for directories and files with different scenarios
+        # self.images_3d_list = self._listImages('/3DLV/')
+
+        self.images_3d_list = self._listImages('/Normalized_MNI/')
+        self.landmarks_list = self._listLandmarks('/LandmarksMAN/VoxelCoordinates/')
+
+
+    @property
+    def num_files(self):
+        return len(self.files_list)
+
+    def _listImages(self, suffix):
+        # extend directory path
+        current_dir = self.dir + suffix
+        image_files = []
+        for filename in self.files_list:
+            file_path = os.path.join(current_dir, filename) #+ '.nii.gz')
+            image_files.append(file_path)
+
+        return image_files
+
+    def _listLandmarks(self, suffix):
+        # extend directory path
+        current_dir = self.dir + suffix
+        landmark_files = []
+        for filename in self.files_list:
+            filename = filename[:-32] + '.txt'
+            file_path = os.path.join(current_dir, filename)
+            landmark_files.append(file_path)
+
+        return landmark_files
+
+
+    def sample_circular(self,shuffle=False):
+        """ return a random sampled ImageRecord from the list of files
+        """
+        if shuffle:
+            indexes = rng.choice(x,len(x),replace=False)
+        else:
+            indexes = np.arange(self.num_files)
+
+        while True:
+            for idx in indexes:
+                # print('============================================')
+                # print('images_3d_list[idx] {} \nimages_2ch_list[idx] {} \nimages_4ch_list[idx] {}'.format(self.images_3d_list[idx].split('/')[-1],self.images_2ch_list[idx].split('/')[-1],self.images_4ch_list[idx].split('/')[-1]))
+
+                sitk_image3d, _ =NiftiImage().decode(self.images_3d_list[idx])
+                landmarks = getLandmarksFromTXTFile(self.landmarks_list[idx])
+                filename = self.images_3d_list[idx][:-7]
+
+                yield sitk_image3d, landmarks, filename
+
+
+
+
+
+
+
+
+
+
+###############################################################################
+
+class filesCardioPlane(object):
     """ A class for managing train files for Ozan mri cardio data
 
         Attributes:
@@ -240,7 +439,7 @@ class trainFiles_cardio_plane(object):
 ###############################################################################
 ###############################################################################
 
-class trainFiles_cardio(trainFiles):
+class filesCardio(files):
     """ A class for managing train files for Ozan mri cardio data
 
         Attributes:
@@ -309,7 +508,7 @@ class trainFiles_cardio(trainFiles):
 
 ###############################################################################
 
-class trainFiles_fetal_US(trainFiles):
+class filesFetalUS(files):
     """ A class for managing train files for Ozan mri cardio data
 
         Attributes:

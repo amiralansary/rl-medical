@@ -32,7 +32,7 @@ def play_one_episode(env, func, render=False):
         """
         act = func(s[None, :, :, :])[0][0].argmax()
         q_values = func(s[None, :, :, :])[0][0]
-        # if random.random() < 0.001:
+        # if random.random() < 0.01:
         #     spc = env.action_space
         #     act = spc.sample()
         return act, q_values
@@ -83,8 +83,8 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
         def run(self):
             with self.default_sess():
                 player = get_player_fn(directory=directory,
-                                       train=False)#,
-                                       #files_list=files_list)
+                                       train=False,
+                                       files_list=files_list)
                 while not self.stopped():
                     try:
                         score, filename, ditance_error, q_values = play_one_episode(player, self.func)
@@ -145,7 +145,7 @@ def eval_model_multithread(pred, nr_eval, get_player_fn):
 class Evaluator(Callback):
 
     def __init__(self, nr_eval, input_names, output_names,
-                 directory, get_player_fn, files_list = None):
+                 get_player_fn, directory, files_list = None):
         self.directory = directory
         self.files_list = files_list
         self.eval_episode = nr_eval

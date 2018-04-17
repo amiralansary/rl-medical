@@ -26,8 +26,11 @@ If you use this code in your research, please cite this paper:
 
 ```
 @article{alansary2018evaluating,
-    title={{Evaluating Reinforcement Learning Agents for Anatomical Landmark Detection}},
-    author={Alansary, Amir and Oktay, Ozan and Yuanwei, Li and Le Folgoc, Loic and Hou, Benjamin and Vaillant, Ghislain and Glocker, Ben and Kainz, Bernhard and Rueckert, Daniel},
+    title={{Evaluating Reinforcement Learning Agents for Anatomical
+      Landmark Detection}},
+    author={Alansary, Amir and Oktay, Ozan and Yuanwei, Li and
+      Le Folgoc, Loic and Hou, Benjamin and Vaillant, Ghislain and
+      Glocker, Ben and Kainz, Bernhard and Rueckert, Daniel},
     url={https://openreview.net/forum?id=SyQK4-nsz},
     year={2018}
  }
