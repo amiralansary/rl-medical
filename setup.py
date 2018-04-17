@@ -19,13 +19,13 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.0',
+    version='0.1.0',
 
-    description='A sample Python project',
+    description='Extension to tensorpack for medical appliactions',
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://gitlab.doc.ic.ac.uk/tensorpack-medical/tensorpack-medical',
+    url='https://github.com/amiralansary/tensorpack-medical',
 
     # Author details
     author='Amir Alansary',
