@@ -17,12 +17,27 @@ it can be used for actual research comparisons.
 
 ## Installation
 
-Dependencies:
+### Dependencies
+
+tensorpack-medical requires:
+
 + Python >= 3.5
 + TensorFlow >= 1.6.0
++ Tensorpack >= 0.8.0
 + Python OpenCV
 + pyglet
 
+### User installation
 ```
 pip install -U git+https://github.com/amiralansary/tensorpack-medical.git
+```
+
+## Development
+
+New contributors of any experience level are very welcomed. Reproducing more examples from published research is very helpful, welcoming, and effective.
+
+### Source code
+You can clone the latest version of the source code with the command::
+```
+git clone https://github.com/amiralansary/tensorpack-medical.git
 ```
