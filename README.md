@@ -1,11 +1,12 @@
 # tensorpack-medical
 
-Extension to [tensorpack](https://github.com/ppwwyyxx/tensorpack) for medical imaging applications.
+Extension to [tensorpack](https://github.com/ppwwyyxx/tensorpack) for medical
+imaging applications.
 
 ## Examples
-Here are some selected examples of medical imaging with deep learning research. In
-these examples we try to replicate the results from recent published work, so that
-it can be used for actual research comparisons.
+Here are some selected examples of medical imaging with deep learning research.
+In these examples we try to replicate the results from recent published work,
+so that it can be used for actual research comparisons.
 
 + Reinforcement Learning:
   - [Landmark detection using different DQN variants](examples/LandmarkDetection/DQN)
@@ -34,7 +35,9 @@ pip install -U git+https://github.com/amiralansary/tensorpack-medical.git
 
 ## Development
 
-New contributors of any experience level are very welcomed. Reproducing more examples from published research is very helpful, welcoming, and effective.
+New contributors of any experience level are very welcomed. Reproducing more
+examples from recent published works is very helpful for the reproducibility of
+new research.
 
 ### Source code
 You can clone the latest version of the source code with the command::
