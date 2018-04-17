@@ -33,22 +33,11 @@ from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
                         FullyConnected, LeakyReLU, PReLU, SimpleTrainer,
                         launch_train_with_config)
 ###############################################################################
+data_dir = 'data_dir'
+train_list = 'list_of_train_filenames.txt'
+test_list = 'list_of_test_filenames.txt'
 
-# data_dir = '/vol/medic01/users/aa16914/data/adult_brain_from_ricardo/'
-# test_list = '/vol/medic01/users/aa16914/data/adult_brain_from_ricardo/k_fold/test_files_fold_1.txt'
-# train_list = '/vol/medic01/users/aa16914/data/adult_brain_from_ricardo/k_fold/train_files_fold_1.txt'
-#
-# data_dir = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection/DQN/data/fetal_brain_us_yuanwei_miccai_2018/'
-# test_list = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection/DQN/data/fetal_brain_us_yuanwei_miccai_2018/test_list.txt'
-# train_list = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/LandmarkDetection/DQN/data/fetal_brain_us_yuanwei_miccai_2018/train_list.txt'
-
-
-data_dir = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/'
-test_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/test_files_fold_1.txt'
-train_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/train_files_fold_1.txt'
-
-
-logger_dir = os.path.join('train_log', 'tmp')
+logger_dir = os.path.join('train_log', 'expriment_1')
 
 ###############################################################################
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS 256
