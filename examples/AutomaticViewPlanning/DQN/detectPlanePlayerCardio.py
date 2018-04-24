@@ -3,6 +3,8 @@
 # File: detectPlanePlayer.py
 # Author: Amir Alansary <amiralansary@gmail.com>
 
+
+import csv
 import os
 import six
 import random
@@ -33,7 +35,7 @@ from tensorpack.utils.stats import StatCounter
 # from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
 
 from sampleTrain import *
-from detectPlaneHelper_new import *
+from detectPlaneHelper import *
 
 
 __all__ = ['MedicalPlayer']
@@ -58,7 +60,7 @@ class MedicalPlayer(gym.Env):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=False, train=False,
+    def __init__(self, directory=None, files_list=None, viz=False, train=False,
                  screen_dims=(27,27,27), spacing=(1,1,1), nullop_start=30,
                  history_length=30, max_num_frames=0, savegif=False):
         """
@@ -76,17 +78,25 @@ class MedicalPlayer(gym.Env):
         super(MedicalPlayer, self).__init__()
 
         self.reset_stat()
-        self._supervised = True
-        self._init_action_angle_step = 40
-        self._init_action_dist_step = 8
+        self._supervised = False
+        self._init_action_angle_step = 8
+        self._init_action_dist_step = 4
+
+        #######################################################################
+        ## save results in csv file
+        self.csvfile = 'dummy.csv'
+        if not train:
+            with open(self.csvfile, 'w') as outcsv:
+                fields = ["filename", "dist_error", "angle_error"]
+                writer = csv.writer(outcsv)
+                writer.writerow(map(lambda x: x, fields))
+        #######################################################################
 
         # read files from directory - add your data loader here
-        self.train_files = trainFiles_cardio_plane(directory)
-        # self.train_files = trainFiles_fetal_US(directory)
-        # self.train_files = trainFiles_cardio(directory)
-        # self.train_files = trainFiles(directory)
+        self.files = filesListCardioMRPlane(directory,files_list)
+
         # prepare file sampler
-        self.sampled_files = self.train_files.sample_circular()
+        self.sampled_files = self.files.sample_circular()
         self.filepath = None
         # counter to limit number of steps per episodes
         self.cnt = 0
@@ -174,8 +184,10 @@ class MedicalPlayer(gym.Env):
         # print('\n============== new game ===============\n')
         self.terminal = False
         self.viewer = None
+
         # sample a new image
-        self.sitk_image, self.sitk_image_2ch, self.sitk_image_4ch, self.filepath = next(self.sampled_files)
+        (self.sitk_image, self.sitk_image_2ch, self.sitk_image_4ch,
+         self.landmarks, self.filepath) = next(self.sampled_files)
         self.filename = os.path.basename(self.filepath)
         # image volume size
         self._image_dims = self.sitk_image.GetSize()
@@ -211,31 +223,19 @@ class MedicalPlayer(gym.Env):
                                             self._plane_size,
                                             spacing=self.spacing))
 
+        self.landmarks_gt, _ = zip(*[projectPointOnPlane(point, self._groundTruth_plane.norm, self._groundTruth_plane.origin) for point in self.landmarks])
         # logger.info('groundTruth {}'.format(self._groundTruth_plane.params))
-
-        # # Get initial plane and set current plane the same
+        # Get initial plane and set current plane the same
         self._plane = self._init_plane = Plane(*getInitialPlane(
                                             self.sitk_image,
                                             self._plane_size,
                                             self._origin3d_point,
                                             self.spacing))
-
-        # ---------------------------------------------------------------------
-        # ---------------------------------------------------------------------
-        # # translation only
-        # init_plane_params = np.copy(self._groundTruth_plane.params)
-        # init_plane_params[3] = self._plane.params[3]
-        # self._plane = self._init_plane  = Plane(*getPlane(self.sitk_image,
-        #                                         self._origin3d_point,
-        #                                         init_plane_params,
-        #                                         self._plane_size,
-        #                                         spacing=self.spacing))
-        # ---------------------------------------------------------------------
-        # ---------------------------------------------------------------------
-
+        _, dist = zip(*[projectPointOnPlane(point, self._plane.norm, self._plane.origin) for point in self.landmarks_gt])
         # calculate current distance between initial and ground truth planes
-        self.cur_dist = calcMeanDistTwoPlanes(self._groundTruth_plane.points,
-                                             self._plane.points)
+        # self.cur_dist = calcMeanDistTwoPlanes(self._groundTruth_plane.points,
+        #                                      self._plane.points)
+        self.cur_dist = np.mean(np.abs(dist))
         self.cur_dist_params = calcDistTwoParams(self._groundTruth_plane.params
                                         , self._plane.params,
                                         scale_angle = self.action_angle_step,
@@ -265,9 +265,6 @@ class MedicalPlayer(gym.Env):
         current_plane_params = np.copy(self._plane.params)
         next_plane_params = current_plane_params.copy()
         # ---------------------------------------------------------------------
-        # if (act==0): next_plane_params[3] += self.action_step
-        # if (act==1): next_plane_params[3] -= self.action_step
-
         # theta x+ (param a)
         if (act==0): next_plane_params[0] += self.action_angle_step
         # theta y+ (param b)
@@ -285,14 +282,13 @@ class MedicalPlayer(gym.Env):
         if (act==6): next_plane_params[2] -= self.action_angle_step
         # dist d-
         if (act==7): next_plane_params[3] -= self.action_dist_step
-
         # ---------------------------------------------------------------------
         # self.reward = self._calc_reward_points(self._plane.points,
         #                                        next_plane.points)
         self.reward = self._calc_reward_params(current_plane_params,
                                                next_plane_params)
         # threshold reward between -1 and 1
-        # self.reward = np.sign(self.reward)
+        self.reward = np.sign(self.reward)
         go_out = False
 
         if self._supervised and self.train:
@@ -304,7 +300,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[0] += self.action_angle_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -313,7 +310,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[1] += self.action_angle_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -322,7 +320,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[2] += self.action_angle_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -331,7 +330,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[3] += self.action_dist_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -340,7 +340,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[0] -= self.action_angle_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -349,7 +350,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[1] -= self.action_angle_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -358,7 +360,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[2] -= self.action_angle_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -367,7 +370,8 @@ class MedicalPlayer(gym.Env):
             next_plane_params[3] -= self.action_dist_step
             plane_params_queue.append(next_plane_params)
             # dist_queue.append(calcMeanDistTwoPlanes(self._groundTruth_plane.points, plane_params_queue[-1].points))
-            dist_queue.append(calcDistTwoParams(self._groundTruth_plane.params,
+            dist_queue.append(calcDistTwoParams(
+                                        self._groundTruth_plane.params,
                                         plane_params_queue[-1],
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step))
@@ -405,67 +409,78 @@ class MedicalPlayer(gym.Env):
             if go_out:
                 self.reward = -1 # lowest possible reward
                 next_plane = copy.deepcopy(self._plane)
-                # self.terminal = True # end episode and restart
+                if self.train: self.terminal = True # end episode and restart
 
         # ---------------------------------------------------------------------
-        # ---------------------------------------------------------------------
+        # update current plane
         self._plane = copy.deepcopy(next_plane)
-        # self._screen = self._current_state()
+        # terminate if maximum number of steps is reached
+        self.cnt += 1
+        if self.cnt >= self.max_num_frames:
+            # logger.info('max number of frames')
+            self.terminal = True
+            self.cnt = 0
+        # check oscillation and reduce action step or terminate if minimum
+        if self._oscillate:
+            if self.train and self._supervised:
+                self._plane = self.getBestPlaneTrain()
+            else:
+                self._plane = self.getBestPlane()
 
+            # find distance metrics
+            # self.cur_dist = calcMeanDistTwoPlanes(self._groundTruth_plane.points, self._plane.points)
+            _, dist = zip(*[projectPointOnPlane(point, self._plane.norm, self._plane.origin) for point in self.landmarks_gt])
+            self.cur_dist = np.max(np.abs(dist))
+            self._update_heirarchical()
+            self._clear_history()
+            # terminate if distance steps are less than 1
+            if self.action_dist_step < 1: self.terminal = True
+
+        # ---------------------------------------------------------------------
         # find distance error
-        self.cur_dist = calcMeanDistTwoPlanes(self._groundTruth_plane.points,
-                                        self._plane.points)
-
+        _, dist = zip(*[projectPointOnPlane(point, self._plane.norm, self._plane.origin) for point in self.landmarks_gt])
+        self.cur_dist = np.mean(np.abs(dist))
         self.cur_dist_params = calcDistTwoParams(self._groundTruth_plane.params                            , self._plane.params,
                                         scale_angle = self.action_angle_step,
                                         scale_dist = self.action_dist_step)
-
         self.current_episode_score.feed(self.reward)
+        self._update_history() # store results in memory
 
-        # store results in memory
-        self._update_history()
-
-        # check maximum number of steps
-        self.cnt += 1
-        if self.cnt >= self.max_num_frames:
+        # terminate if distance between params are low during training
+        if self.train and (self.cur_dist_params<=1):
             self.terminal = True
-            self.cnt = 0
-
-        # ---------------------------------------------------------------------
-        # check if oscillates and reduce action step or terminate if minimum
-        if self._oscillate:
-            # logger.info('oscillating {}'.format(self._loc_history))
-            if not go_out:
-                if self.train and self._supervised:
-                    self._plane = self.getBestPlaneTrain()
-                    # logger.info('train')
-                else:
-                    self._plane = self.getBestPlane()
-                    # logger.info('why I am here')
-            self.cur_dist = calcMeanDistTwoPlanes(self._groundTruth_plane.points, self._plane.points)
-            if self.spacing[0] < 3: #self.action_dist_step<1:
-                self.terminal = True
-                self._update_history()
-                if self.cur_dist<=5: self.num_success.feed(1)
-
-            if not self.terminal: self._update_heirarchical()
-            self._clear_history()
+            self.num_success.feed(1)
 
         # ---------------------------------------------------------------------
 
-        # termination conditon for train/test
-        if (not self.terminal) and self.train:
-            if self.cur_dist<=5:
-                self.terminal = True
-                self.num_success.feed(1)
+        # # supervised reward (for debuging)
+        # reward_supervised = self._calc_reward_params(current_plane_params,
+        #                                        self._plane.params)
+        # # threshold reward between -1 and 1
+        # self.reward = np.sign(np.around(reward_supervised,decimals=1))
+
+        # ---------------------------------------------------------------------
 
         # render screen if viz is on
-        with _ALE_LOCK:
-            if self.viz:
-                if isinstance(self.viz, float):
-                    self.display()
+        if self.viz:
+            if isinstance(self.viz, float):
+                self.display()
 
-        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': self.cur_dist, 'filename':self.filename}
+
+        A = normalizeUnitVector(self._groundTruth_plane.norm)
+        B = normalizeUnitVector(self._plane.norm)
+        angle_between_norms = np.rad2deg(np.arccos(A.dot(B)))
+
+
+        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': self.cur_dist, 'distAngle': angle_between_norms, 'filename':self.filename}
+
+
+        if self.terminal:
+            with open(self.csvfile, 'a') as outcsv:
+                fields= [self.filename, self.cur_dist, angle_between_norms]
+                writer = csv.writer(outcsv)
+                writer.writerow(map(lambda x: x, fields))
+
 
         ## debug
         # logger.info('dist_queue {}'.format(np.round(dist_queue,2)))
@@ -475,15 +490,19 @@ class MedicalPlayer(gym.Env):
         # logger.info('plane_hist {}'.format(self._plane_history))
         # logger.info('action_step {}'.format(self.action_step))
 
-        # set_trace()
-
+        # # set_trace()
+        # # if self.terminal:
         # logger.info('plane  origin     {}'.format(np.round(self._plane.origin,2)))
         # logger.info('ground origin     {}'.format(np.round(self._groundTruth_plane.origin,2)))
-        # logger.info('current plane     {}'.format(np.round(self._plane.params,2)))
         # logger.info('ground  plane     {}'.format(np.round(self._groundTruth_plane.params,2)))
-        # logger.info('cur_dist {}'.format(self.cur_dist))
+        # logger.info('current plane     {}'.format(np.round(self._plane.params,2)))
+        # logger.info('previous plane     {}'.format(np.round(current_plane_params,2)))
+        # # logger.info('cur_dist {}'.format(self.cur_dist))
+        # logger.info('cur_dist_params {}'.format(self.cur_dist_params))
         # logger.info('reward {}'.format(self.reward))
+        # logger.info('dist step = {} - angle step = {}'.format(self.action_dist_step, self.action_angle_step))
         # logger.info('spacing = {}'.format(self.spacing))
+        # # # logger.info(info)
         # logger.info('------------------')
 
         return self._current_state(), self.reward, self.terminal, info
@@ -493,9 +512,10 @@ class MedicalPlayer(gym.Env):
     # -------------------------------------------------------------------------
 
     def _update_heirarchical(self):
-        self.action_angle_step = self.action_angle_step/2
-        self.action_dist_step = self.action_dist_step/2
-        self.spacing -= 1
+        self.action_angle_step = int(self.action_angle_step/2)
+        self.action_dist_step = self.action_dist_step-1
+        # self.spacing -= 1
+        if (self.spacing[0] > 1): self.spacing -= 1
         self._groundTruth_plane = Plane(*getGroundTruthPlane(
                                             self.sitk_image,
                                             self.sitk_image_4ch,
@@ -549,10 +569,8 @@ class MedicalPlayer(gym.Env):
         # logger.info('loc {}'.format(loc))
         self._loc_history[-1] = (np.around(loc[0],decimals=2),
                                  np.around(loc[1],decimals=2),
-                                 np.around(loc[2],decimals=2))
-        # self._loc_history[-1] = (int(loc[0]),
-        #                          int(loc[1]),
-        #                          int(loc[2]))
+                                 np.around(loc[2],decimals=2),
+                                 np.around(loc[3],decimals=2))
         # update distance history
         self._dist_history.append(self.cur_dist)
         self._dist_history_params.append(self.cur_dist_params)
@@ -578,11 +596,11 @@ class MedicalPlayer(gym.Env):
         '''
         # logger.info('prev_params {}'.format(np.around(prev_params,2)))
         # logger.info('next_params {}'.format(np.around(next_params,2)))
-        prev_dist = calcDistTwoParams(self._groundTruth_plane.params,
+        prev_dist = calcScaledDistTwoParams(self._groundTruth_plane.params,
                                       prev_params,
                                       scale_angle = self.action_angle_step,
                                       scale_dist = self.action_dist_step)
-        next_dist = calcDistTwoParams(self._groundTruth_plane.params,
+        next_dist = calcScaledDistTwoParams(self._groundTruth_plane.params,
                                       next_params,
                                       scale_angle = self.action_angle_step,
                                       scale_dist = self.action_dist_step)
@@ -595,7 +613,9 @@ class MedicalPlayer(gym.Env):
         '''
         counter = Counter(self._loc_history)
         freq = counter.most_common()
-
+        # return false is history is empty (begining of the game)
+        if len(freq) < 2: return False
+        # check frequency
         if freq[0][0] == (0,0,0,0):
             if (freq[1][1]>2):
                 # logger.info('oscillating {}'.format(self._loc_history))
@@ -667,27 +687,32 @@ class MedicalPlayer(gym.Env):
 
         # display image
         self.viewer.draw_image(img)
+        self.viewer.display_text('Current Plane', color=(0,0,255,255),
+                                 x=int(img.shape[1]/6), y=img.shape[0]-2)
+        self.viewer.display_text('Ground Truth', color=(0,0,255,255),
+                                 x=int(4*img.shape[1]/6), y=img.shape[0]-2)
+
         # display info
         dist_color_flag = False
         if len(self._dist_history)>1:
             dist_color_flag = self.cur_dist<self._dist_history[-2]
 
         color_dist = (0,255,0,255) if dist_color_flag else (255,0,0,255)
-        text = 'dist error ' + str(round(self.cur_dist,3)) + 'mm'
+        text = 'Dist Error ' + str(round(self.cur_dist,3)) + 'mm'
         self.viewer.display_text(text, color=color_dist,
-                                 x=2*scale_x, y=img.shape[0])
+                                 x=int(3*img.shape[1]/8), y=5*scale_y)
 
         dist_color_flag = False
         if len(self._dist_history_params)>1:
             dist_color_flag = self.cur_dist_params<self._dist_history_params[-2]
 
         color_dist = (0,255,0,255) if dist_color_flag else (255,0,0,255)
-        text = 'dist error ' + str(round(self.cur_dist_params,3))
+        text = 'Params Error ' + str(round(self.cur_dist_params,3))
         self.viewer.display_text(text, color=color_dist,
-                                 x=img.shape[1]-40*scale_x, y=5*scale_y)
+                                 x=int(6*img.shape[1]/8), y=5*scale_y)
 
         color_reward = (0,255,0,255) if self.reward>0 else (255,0,0,255)
-        text = 'reward ' + str(round(self.reward,3))
+        text = 'Reward ' + str(round(self.reward,3))
         self.viewer.display_text(text, color=color_reward,
                                  x=2*scale_x, y=5*scale_y)
 
@@ -723,7 +748,7 @@ class MedicalPlayer(gym.Env):
             self.gif_buffer.append(im)
 
             if not self.terminal:
-                gifname = self.filename.split('.')[0] + '.gif'
+                gifname = './gif/' + 'cardio_miccai/' + self.filename.split('.')[0] + '.gif'
                 self.viewer.savegif(gifname,arr=self.gif_buffer, duration=self.viz)
 
 

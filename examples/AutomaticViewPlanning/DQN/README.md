@@ -29,8 +29,13 @@ If you use this code in your research, please cite this paper:
 
 ```
 @unpublished{alansary2018automatic,
-  title={{Automatic View Planning with Multi-scale Deep Reinforcement Learning Agents}},
-  author={Alansary, Amir and Le Folgoc, Loic and Vaillant, Ghislain and Oktay, Ozan and Li, Yuanwei and Bai, Wenjia and Passerat-Palmbach, Jonathan and Guerrero, Ricardo and Kamnitsas, Konstantinos and Hou, Benjamin and McDonagh, Steven and Glocker, Ben and Kainz, Bernhard and Rueckert, Daniel},
+  title={{Automatic View Planning with Multi-scale Deep Reinforcement
+    Learning Agents}},
+  author={Alansary, Amir and Le Folgoc, Loic and Vaillant, Ghislain
+    and Oktay, Ozan and Li, Yuanwei and Bai, Wenjia
+    and Passerat-Palmbach, Jonathan and Guerrero, Ricardo
+    and Kamnitsas, Konstantinos and Hou, Benjamin and McDonagh, Steven
+    and Glocker, Ben and Kainz, Bernhard and Rueckert, Daniel},
   year={2018},
   note={Under review}
   }

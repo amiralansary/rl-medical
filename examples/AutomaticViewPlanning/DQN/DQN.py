@@ -4,30 +4,23 @@
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 # Modified: Amir Alansary <amiralansary@gmail.com>
 
-
+#------------------------------------------------------------------------------
 def warn(*args, **kwargs):
     pass
 import warnings
 warnings.warn = warn
 warnings.simplefilter("ignore", category=PendingDeprecationWarning)
-
-import numpy as np
+#------------------------------------------------------------------------------
 
 import os
-import sys
-# import re
 import time
-import random
 import argparse
-import subprocess
-import multiprocessing
-import threading
+import numpy as np
+import tensorflow as tf
 from collections import deque
 
-import tensorflow as tf
-
-# from detectPlanePlayer import MedicalPlayer, FrameStack
-from detectPlanePlayerSupervised import MedicalPlayer, FrameStack
+from detectPlanePlayerCardio import MedicalPlayer, FrameStack
+# from detectPlanePlayerBrain import MedicalPlayer, FrameStack
 
 
 from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
@@ -38,10 +31,7 @@ from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
                         launch_train_with_config)
 
 from tensorpack.input_source import QueueInput
-
 from tensorpack_medical.models.conv3d import Conv3D
-# from tensorpack_medical.RL.history import HistoryFramePlayer
-# from tensorpack_medical.RL.common import (MapPlayerState, PreventStuckPlayer)
 
 from common import Evaluator, eval_model_multithread, play_n_episodes
 from DQNModel import Model3D as DQNModel
@@ -50,9 +40,9 @@ from expreplay import ExpReplay
 ###############################################################################
 
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS UNKNOWN
-BATCH_SIZE = 256
+BATCH_SIZE = 32
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
-IMAGE_SIZE = (85, 85, 9) # (85, 85, 9)#(27, 27, 27)
+IMAGE_SIZE = (50, 50, 9) # (85, 85, 9)#(27, 27, 27)
 FRAME_HISTORY = 4
 ## FRAME SKIP FOR ATARI GAMES
 # ACTION_REPEAT = 4
@@ -61,7 +51,7 @@ UPDATE_FREQ = 4
 # DISCOUNT FACTOR - NATURE (0.99) - MEDICAL (0.9)
 GAMMA = 0.9 #0.99
 # REPLAY MEMORY SIZE - NATURE (1e6) - MEDICAL (1e5 view-patches)
-MEMORY_SIZE = 1e5#6
+MEMORY_SIZE = 1e6
 # consume at least 1e6 * 27 * 27 * 27 bytes
 INIT_MEMORY_SIZE = MEMORY_SIZE // 20 #5e4
 # each epoch is 100k played frames
@@ -77,25 +67,17 @@ SPACING = (5,5,5)
 
 ###############################################################################
 ###############################################################################
-
-TRAIN_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/train/'
-VALID_DIR = '/vol/medic01/users/aa16914/projects/tensorpack-medical/examples/PlaneDetection/data/cardiac/test/'
-
-# TRAIN_DIR = '/../../../../../../../data/aa16914/cardio_plane_detection/train'
-# VALID_DIR = '/../../../../../../../data/aa16914/cardio_plane_detection/test'
-
-###############################################################################
+# data_dir = 'data_dir'
+# train_list = 'list_of_train_filenames.txt'
+# test_list = 'list_of_test_filenames.txt'
+#
+# logger_dir = os.path.join('train_log', 'expriment_1')
 
 data_dir = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/'
 test_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/test_files_fold_1.txt'
 train_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/train_files_fold_1.txt'
 
-logger_dir = os.path.join('train_log',
-                          # 'test_dist_points_spacing2_max1000_heirarchical08_unsupervised')
-                          # 'dist_params_multiscale_spacing5_action_heirarchical40_8_unsupervised_fix_orient_smooth_double_fold_1_large_batch')
-                          # 'test_dist_points_spacing1_max1000_heirarchical08_unsupervised_ROI151_highLR')
-                          'test')
-
+logger_dir = os.path.join('train_log', 'tmp_exp1')
 
 ###############################################################################
 
@@ -103,10 +85,9 @@ logger_dir = os.path.join('train_log',
 def get_player(directory=None, files_list= None,
                viz=False, train=False, savegif=False):
 
-    # atari max_num_frames = 30000
     env = MedicalPlayer(directory=directory, files_list=files_list,
                         screen_dims=IMAGE_SIZE, viz=viz, savegif=savegif,
-                        train=train, spacing=SPACING, max_num_frames=1000)
+                        train=train, spacing=SPACING, max_num_frames=500)
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
@@ -127,22 +108,27 @@ class Model(DQNModel):
             #,argscope(LeakyReLU, alpha=0.01):
             l = (LinearWrap(image)
                  .Conv3D('conv0', out_channel=32,
-                         kernel_shape=[8,8,3], stride=[4,4,1])
+                         kernel_shape=[8,8,3], stride=[2,2,1])
                  # Nature architecture
                  .Conv3D('conv1', out_channel=32,
-                         kernel_shape=[8,8,3], stride=[4,4,1])
+                         kernel_shape=[8,8,3], stride=[2,2,1])
                  .Conv3D('conv2', out_channel=64,
-                         kernel_shape=[4,4,3], stride=[1,1,1])
+                         kernel_shape=[4,4,3], stride=[2,2,1])
                  .Conv3D('conv3', out_channel=64,
                          kernel_shape=[3,3,3], stride=[1,1,1])
                  .FullyConnected('fc0', 512)
+                 .tf.nn.leaky_relu(alpha=0.01)
+                 .FullyConnected('fc1', 256)
+                 .tf.nn.leaky_relu(alpha=0.01)
+                 .FullyConnected('fc2', 128)
                  .tf.nn.leaky_relu(alpha=0.01)())
-        if self.method != 'Dueling':
+        if 'Dueling' not in self.method:
             Q = FullyConnected('fct', l, self.num_actions, nl=tf.identity)
         else:
             # Dueling DQN
-            V = FullyConnected('fctV', l, 1, nl=tf.identity)
-            As = FullyConnected('fctA', l, self.num_actions, nl=tf.identity)
+            V = FullyConnected('fctV', l, 1, activation=tf.identity)
+            As = FullyConnected('fctA', l, self.num_actions,
+                                activation=tf.identity)
             Q = tf.add(As, V - tf.reduce_mean(As, 1, keepdims=True))
         return tf.identity(Q, name='Qvalue')
 
@@ -208,7 +194,8 @@ if __name__ == '__main__':
                         choices=['play', 'eval', 'train'], default='train')
     # parser.add_argument('--rom', help='atari rom', required=True)
     parser.add_argument('--algo', help='algorithm',
-                        choices=['DQN', 'Double', 'Dueling'], default='Double')
+                        choices=['DQN', 'Double', 'Dueling', 'DuelingDouble'],
+                        default='Double')
     parser.add_argument('--savegif', help='save gif image of the game',
                         action='store_true', default=False)
     args = parser.parse_args()
@@ -233,10 +220,14 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue']))
         if args.task == 'play':
+            t0 = time.time()
             play_n_episodes(get_player(directory=data_dir,
-                                       files_list=train_list, viz=0.01,
+                                       files_list=test_list, viz=0.01,
                                        savegif=args.savegif),
                             pred, num_validation_files)
+
+            t1 = time.time()
+            print(t1-t0)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
     else:
