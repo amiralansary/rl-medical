@@ -67,17 +67,11 @@ SPACING = (5,5,5)
 
 ###############################################################################
 ###############################################################################
-# data_dir = 'data_dir'
-# train_list = 'list_of_train_filenames.txt'
-# test_list = 'list_of_test_filenames.txt'
-#
-# logger_dir = os.path.join('train_log', 'expriment_1')
+data_dir = 'data_dir'
+train_list = 'list_of_train_filenames.txt'
+test_list = 'list_of_test_filenames.txt'
 
-data_dir = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/'
-test_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/test_files_fold_1.txt'
-train_list = '/vol/medic01/users/aa16914/data/cardiac_plane_detection_from_ozan/list_files_5_folds/train_files_fold_1.txt'
-
-logger_dir = os.path.join('train_log', 'tmp_exp1')
+logger_dir = os.path.join('train_log', 'expriment_1')
 
 ###############################################################################
 
