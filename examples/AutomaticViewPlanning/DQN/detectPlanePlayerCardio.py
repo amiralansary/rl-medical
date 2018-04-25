@@ -20,6 +20,8 @@ import cv2
 import math
 import time
 from PIL import Image
+import subprocess
+import shutil
 
 import gym
 from gym import spaces
@@ -32,7 +34,6 @@ except ImportError as e:
 
 from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
-# from tensorpack.RL.envbase import RLEnvironment, DiscreteActionSpace
 
 from sampleTrain import *
 from detectPlaneHelper import *
@@ -45,7 +46,8 @@ _ALE_LOCK = threading.Lock()
 
 # plane container of its array, normal vector, origin,
 # and parameters(angles in degrees and d), selected points (e.g. corners)
-Plane = namedtuple('Plane', ['grid', 'norm', 'origin', 'params', 'points'])
+Plane = namedtuple('Plane', ['grid', 'grid_smooth', 'norm', 'origin', 'params',
+                            'points'])
 
 # ===================================================================
 # =================== 3d medical environment ========================
@@ -62,7 +64,8 @@ class MedicalPlayer(gym.Env):
 
     def __init__(self, directory=None, files_list=None, viz=False, train=False,
                  screen_dims=(27,27,27), spacing=(1,1,1), nullop_start=30,
-                 history_length=30, max_num_frames=0, savegif=False):
+                 history_length=30, max_num_frames=0, saveGif=False,
+                 saveVideo=False):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -98,14 +101,13 @@ class MedicalPlayer(gym.Env):
         # prepare file sampler
         self.sampled_files = self.files.sample_circular()
         self.filepath = None
-        # counter to limit number of steps per episodes
-        self.cnt = 0
         # maximum number of frames (steps) per episodes
         self.max_num_frames = max_num_frames
         # stores information: terminal, score, distError
         self.info = None
         # option to save display as gif
-        self.savegif = savegif
+        self.saveGif = saveGif
+        self.saveVideo = saveVideo
         # training flag
         self.train = train
         # image dimension (2D/3D)
@@ -165,8 +167,9 @@ class MedicalPlayer(gym.Env):
         restart current episoide
         """
         self.terminal = False
+        self.cnt = 0 # counter to limit number of steps per episodes
         self.num_games.feed(1)
-        self.current_episode_score.reset()  # reset the stat counter
+        self.current_episode_score.reset()  # reset score stat counter
         self._plane_history.clear()
         self._bestq_history.clear()
         self._dist_history.clear()
@@ -222,6 +225,14 @@ class MedicalPlayer(gym.Env):
                                             self._origin3d_point,
                                             self._plane_size,
                                             spacing=self.spacing))
+        # get an istropic 1mm groundtruth plane
+        # image_size = (int(min(self._image_dims)),)*3
+        image_size = self._image_dims
+        self.groundTruth_plane_iso = Plane(*getGroundTruthPlane(
+                                                self.sitk_image,
+                                                self.sitk_image_4ch,
+                                                self._origin3d_point,
+                                                image_size, [1,1,1]))
 
         self.landmarks_gt, _ = zip(*[projectPointOnPlane(point, self._groundTruth_plane.norm, self._groundTruth_plane.origin) for point in self.landmarks])
         # logger.info('groundTruth {}'.format(self._groundTruth_plane.params))
@@ -409,17 +420,14 @@ class MedicalPlayer(gym.Env):
             if go_out:
                 self.reward = -1 # lowest possible reward
                 next_plane = copy.deepcopy(self._plane)
-                if self.train: self.terminal = True # end episode and restart
+                if self.train:  self.terminal = True # end episode and restart
 
         # ---------------------------------------------------------------------
         # update current plane
         self._plane = copy.deepcopy(next_plane)
         # terminate if maximum number of steps is reached
         self.cnt += 1
-        if self.cnt >= self.max_num_frames:
-            # logger.info('max number of frames')
-            self.terminal = True
-            self.cnt = 0
+        if self.cnt >= self.max_num_frames: self.terminal = True
         # check oscillation and reduce action step or terminate if minimum
         if self._oscillate:
             if self.train and self._supervised:
@@ -434,7 +442,7 @@ class MedicalPlayer(gym.Env):
             self._update_heirarchical()
             self._clear_history()
             # terminate if distance steps are less than 1
-            if self.action_dist_step < 1: self.terminal = True
+            if self.action_dist_step < 1:   self.terminal = True
 
         # ---------------------------------------------------------------------
         # find distance error
@@ -466,44 +474,19 @@ class MedicalPlayer(gym.Env):
             if isinstance(self.viz, float):
                 self.display()
 
-
         A = normalizeUnitVector(self._groundTruth_plane.norm)
         B = normalizeUnitVector(self._plane.norm)
         angle_between_norms = np.rad2deg(np.arccos(A.dot(B)))
 
-
-        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': self.cur_dist, 'distAngle': angle_between_norms, 'filename':self.filename}
-
+        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal,
+                'distError': self.cur_dist, 'distAngle': angle_between_norms,
+                'filename':self.filename}
 
         if self.terminal:
             with open(self.csvfile, 'a') as outcsv:
                 fields= [self.filename, self.cur_dist, angle_between_norms]
                 writer = csv.writer(outcsv)
                 writer.writerow(map(lambda x: x, fields))
-
-
-        ## debug
-        # logger.info('dist_queue {}'.format(np.round(dist_queue,2)))
-        # logger.info('plane_queue {}'.format(plane_queue))
-        # logger.info('next_plane_idx {}'.format(next_plane_idx))
-        # logger.info('qvalues_hist {}'.format(self._qvalues_history))
-        # logger.info('plane_hist {}'.format(self._plane_history))
-        # logger.info('action_step {}'.format(self.action_step))
-
-        # # set_trace()
-        # # if self.terminal:
-        # logger.info('plane  origin     {}'.format(np.round(self._plane.origin,2)))
-        # logger.info('ground origin     {}'.format(np.round(self._groundTruth_plane.origin,2)))
-        # logger.info('ground  plane     {}'.format(np.round(self._groundTruth_plane.params,2)))
-        # logger.info('current plane     {}'.format(np.round(self._plane.params,2)))
-        # logger.info('previous plane     {}'.format(np.round(current_plane_params,2)))
-        # # logger.info('cur_dist {}'.format(self.cur_dist))
-        # logger.info('cur_dist_params {}'.format(self.cur_dist_params))
-        # logger.info('reward {}'.format(self.reward))
-        # logger.info('dist step = {} - angle step = {}'.format(self.action_dist_step, self.action_angle_step))
-        # logger.info('spacing = {}'.format(self.spacing))
-        # # # logger.info(info)
-        # logger.info('------------------')
 
         return self._current_state(), self.reward, self.terminal, info
 
@@ -544,7 +527,7 @@ class MedicalPlayer(gym.Env):
         """
         :returns: a gray-scale (h, w, d) float ###uint8 image
         """
-        return self._plane.grid
+        return self._plane.grid_smooth
 
 
     def _clear_history(self):
@@ -657,15 +640,31 @@ class MedicalPlayer(gym.Env):
         self.num_success = StatCounter()
 
 
+
     def display(self, return_rgb_array=False):
         # pass
-        # # get dimensions
-        # current_point = self._location
-        # target_point = self._target_loc
+        # --------------------------------------------------------------------
+        ## planes seen by the agent
+        # # get image and convert it to pyglet
+        # plane = self._plane.grid[:,:,round(self.depth/2)] # z-plane
+        # # concatenate groundtruth image
+        # gt_plane = self._groundTruth_plane.grid[:,:,round(self.depth/2)]
+        # --------------------------------------------------------------------
+        ## whole plan
+        # image_size = (int(min(self._image_dims)),)*3
+        image_size = self._image_dims
+        current_plane = Plane(*getPlane(self.sitk_image,
+                                self._origin3d_point,
+                                self._plane.params,
+                                image_size,
+                                spacing=[1,1,1]))
+
         # get image and convert it to pyglet
-        plane = self._current_state()[:,:,round(self.depth/2)] # z-plane
+        plane = current_plane.grid[:,:,int(image_size[2]/2)] # z-plane
         # concatenate groundtruth image
-        gt_plane = self._groundTruth_plane.grid[:,:,round(self.depth/2)]
+        gt_plane = self.groundTruth_plane_iso.grid[:,:,int(image_size[2]/2)]
+        # --------------------------------------------------------------------
+        # concatenate two planes side by side
         plane = np.concatenate((plane,gt_plane),axis=1)
         #
         img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
@@ -673,9 +672,9 @@ class MedicalPlayer(gym.Env):
         # INTER_NEAREST, INTER_LINEAR, INTER_AREA, INTER_CUBIC, INTER_LANCZOS4
         scale_x = 5
         scale_y = 5
-        img = cv2.resize(img,
-                         (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
-                         interpolation=cv2.INTER_LINEAR)
+        # img = cv2.resize(img,
+        #                  (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
+        #                  interpolation=cv2.INTER_LINEAR)
         # skip if there is a viewer open
         if (not self.viewer) and self.viz:
             from viewer import SimpleImageViewer
@@ -687,18 +686,18 @@ class MedicalPlayer(gym.Env):
 
         # display image
         self.viewer.draw_image(img)
-        self.viewer.display_text('Current Plane', color=(0,0,255,255),
-                                 x=int(img.shape[1]/6), y=img.shape[0]-2)
-        self.viewer.display_text('Ground Truth', color=(0,0,255,255),
-                                 x=int(4*img.shape[1]/6), y=img.shape[0]-2)
+        self.viewer.display_text('Current Plane', color=(0,0,204,255),
+                                 x=int(0.7*img.shape[1]/7), y=img.shape[0]-3)
+        self.viewer.display_text('Ground Truth', color=(0,0,204,255),
+                                 x=int(4.3*img.shape[1]/7), y=img.shape[0]-3)
 
         # display info
         dist_color_flag = False
         if len(self._dist_history)>1:
             dist_color_flag = self.cur_dist<self._dist_history[-2]
 
-        color_dist = (0,255,0,255) if dist_color_flag else (255,0,0,255)
-        text = 'Dist Error ' + str(round(self.cur_dist,3)) + 'mm'
+        color_dist = (0,204,0,255) if dist_color_flag else (204,0,0,255)
+        text = 'Error ' + str(round(self.cur_dist,3)) + 'mm'
         self.viewer.display_text(text, color=color_dist,
                                  x=int(3*img.shape[1]/8), y=5*scale_y)
 
@@ -706,39 +705,24 @@ class MedicalPlayer(gym.Env):
         if len(self._dist_history_params)>1:
             dist_color_flag = self.cur_dist_params<self._dist_history_params[-2]
 
-        color_dist = (0,255,0,255) if dist_color_flag else (255,0,0,255)
-        text = 'Params Error ' + str(round(self.cur_dist_params,3))
-        self.viewer.display_text(text, color=color_dist,
+        # color_dist = (0,255,0,255) if dist_color_flag else (255,0,0,255)
+        # text = 'Params Error ' + str(round(self.cur_dist_params,3))
+        # self.viewer.display_text(text, color=color_dist,
+                                 # x=int(6*img.shape[1]/8), y=5*scale_y)
+        text = 'Spacing ' + str(round(self.spacing[0],3)) + 'mm'
+        self.viewer.display_text(text, color=(204,204,0,255),
                                  x=int(6*img.shape[1]/8), y=5*scale_y)
 
-        color_reward = (0,255,0,255) if self.reward>0 else (255,0,0,255)
-        text = 'Reward ' + str(round(self.reward,3))
+        color_reward = (0,204,0,255) if self.reward>0 else (204,0,0,255)
+        text = 'Reward ' + "%+d" % round(self.reward,3)
         self.viewer.display_text(text, color=color_reward,
                                  x=2*scale_x, y=5*scale_y)
 
-        # draw a transparent circle around target point with variable radius
-        # based on the difference z-direction
-        # self.viewer.draw_circle(radius=self.cur_dist,
-        #                         pos_x=target_point[0],
-        #                         pos_y=target_point[1],
-        #                         color=(1.0,0.0,0.0,0.2))
-        # # draw target point
-        # self.viewer.draw_circle(radius=1,
-        #                         pos_x=target_point[0],
-        #                         pos_y=target_point[1],
-        #                         color=(1.0,0.0,0.0,1.0))
-        # # draw current point
-        # self.viewer.draw_circle(radius=1,
-        #                         pos_x=current_point[0],
-        #                         pos_y=current_point[1],
-        #                         color=(0.0,0.0,1.0,1.0))
-
         # render and wait (viz) time between frames
         self.viewer.render()
-        # time.sleep(self.viz)
-        # time.sleep(2)
+
         # save gif
-        if self.savegif:
+        if self.saveGif:
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             data = image_data.get_data('RGB', image_data.width * 3)
             # set_trace()
@@ -748,8 +732,34 @@ class MedicalPlayer(gym.Env):
             self.gif_buffer.append(im)
 
             if not self.terminal:
-                gifname = './gif/' + 'cardio_miccai/' + self.filename.split('.')[0] + '.gif'
+                gifname = self.filename.split('.')[0] + '.gif'
                 self.viewer.savegif(gifname,arr=self.gif_buffer, duration=self.viz)
+        if self.saveVideo:
+            dirname = 'tmp_video'
+            if (self.cnt <=1):
+                if os.path.isdir(dirname):
+                    logger.warn("""Log directory {} exists! Use 'd' to delete it. """.format(dirname))
+                    act = input("select action: d (delete) / q (quit):").lower().strip()
+                    if act == 'd':
+                        shutil.rmtree(dirname, ignore_errors=True)
+                    else:
+                        raise OSError("Directory {} exits!".format(dirname))
+                os.mkdir(dirname)
+
+            frame = dirname + '/' + '%04d' % self.cnt + '.png'
+            pyglet.image.get_buffer_manager().get_color_buffer().save(frame)
+            if self.terminal:
+                save_cmd = ['ffmpeg','-f', 'image2', '-framerate', '30',
+                    '-pattern_type', 'sequence', '-start_number', '0', '-r',
+                    '3', '-i', dirname + '/%04d.png', '-s', '1280x720',
+                    '-vcodec', 'libx264', '-b:v', '2567k', self.filename+'.mp4']
+                subprocess.check_output(save_cmd)
+                shutil.rmtree(dirname, ignore_errors=True)
+
+
+
+
+
 
 
 

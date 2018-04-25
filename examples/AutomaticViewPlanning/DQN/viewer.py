@@ -84,6 +84,24 @@ class SimpleImageViewer(object):
         glVertex3f(x, y, z)
         glEnd()
 
+    def draw_box(self, x, y, size_x, size_y):
+        main_batch = pyglet.graphics.Batch()
+
+        # for is less likely to get stuck than while
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (x, y, x+size_x, y)),
+                       ('c3B', (255, 0, 0, 0, 255, 0)))
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (x, y, x, y+size_y)),
+                       ('c3B', (255, 0, 0, 0, 255, 0)))
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (x+size_x, y+size_y, x, y+size_y)),
+                       ('c3B', (255, 0, 0, 0, 255, 0)))
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (x+size_x, y+size_y, x+size_x, y)),
+                       ('c3B', (255, 0, 0, 0, 255, 0)))
+
+        main_batch.draw()
 
     def draw_circle(self, radius=10, res=30, pos_x=0, pos_y=0,
                     color=(1.0,1.0,1.0,1.0),**attrs):
@@ -115,7 +133,7 @@ class SimpleImageViewer(object):
                      anchor_x='left', anchor_y='top'):
         label = pyglet.text.Label(text,
                                   font_name='Ariel', color=color,
-                                  font_size=10, #bold=True,
+                                  font_size=8, bold=True,
                                   x=x, y=y,
                                   anchor_x=anchor_x, anchor_y=anchor_y)
         label.draw()
@@ -137,5 +155,3 @@ class SimpleImageViewer(object):
             self.isopen = False
     def __del__(self):
         self.close()
-
-

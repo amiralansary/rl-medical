@@ -91,7 +91,7 @@ def sampleGrid(sitk_image3d, origin_point,
     # reshape to plane size
     grid = np.reshape(values, plane_size)
     # smooth grid to get rid of noise resulting from sampling
-    grid = ndimage.uniform_filter(grid, size=3)
+    grid_smooth = ndimage.uniform_filter(grid, size=3)
     # grid = ndimage.median_filter(grid, size=3)
 
     # select few points
@@ -101,7 +101,7 @@ def sampleGrid(sitk_image3d, origin_point,
               grid_final[0,0,-1,:].tolist(),
               grid_final[-1,-1,-1,:].tolist()]
 
-    return grid, points #sorted(corner_points)
+    return grid, grid_smooth, points #sorted(corner_points)
 
 
 
@@ -143,13 +143,13 @@ def getInitialPlane(sitk_image3d, plane_size,
     vectory = normalizeUnitVector(pointy_physical - origin_physical)
     vectorz = normalizeUnitVector(pointz_physical - origin_physical)
     # sample a grid of size[plane_size]
-    grid, points = sampleGrid(sitk_image3d,
-                              plane_origin,
-                              vectorx,
-                              vectory,
-                              vectorz,
-                              plane_size,
-                              spacing=spacing)
+    grid, grid_smooth, points = sampleGrid(sitk_image3d,
+                                           plane_origin,
+                                           vectorx,
+                                           vectory,
+                                           vectorz,
+                                           plane_size,
+                                           spacing=spacing)
 
     # set_trace()
     # import matplotlib.pyplot as plt
@@ -157,7 +157,7 @@ def getInitialPlane(sitk_image3d, plane_size,
     # plt.show()
     # set_trace()
 
-    return grid, plane_norm, plane_origin, plane_params, points
+    return grid, grid_smooth, plane_norm, plane_origin, plane_params, points
 
 
 ###############################################################################
@@ -223,13 +223,13 @@ def getGroundTruthPlane(sitk_image3d, sitk_image2d, origin, plane_size,
     vectory = np.cross(vectorz, vectorx)
     vectory = normalizeUnitVector(vectory)
     # sample a grid int he calculated directions
-    grid, points = sampleGrid(sitk_image3d,
-                              plane_origin,
-                              vectorx,
-                              vectory,
-                              vectorz,
-                              plane_size,
-                              spacing=spacing)
+    grid, grid_smooth, points = sampleGrid(sitk_image3d,
+                                           plane_origin,
+                                           vectorx,
+                                           vectory,
+                                           vectorz,
+                                           plane_size,
+                                           spacing=spacing)
 
     # set_trace()
     # import matplotlib.pyplot as plt
@@ -237,7 +237,7 @@ def getGroundTruthPlane(sitk_image3d, sitk_image2d, origin, plane_size,
     # plt.show()
     # set_trace()
 
-    return grid, plane_norm, plane_origin, plane_params, points
+    return grid, grid_smooth, plane_norm, plane_origin, plane_params, points
 
 ###############################################################################
 def getACPCPlaneFromLandmarks(sitk_image3d, origin,
@@ -268,16 +268,16 @@ def getACPCPlaneFromLandmarks(sitk_image3d, origin,
     # project origin point on plane
     plane_origin, d = projectPointOnPlane(origin, plane_norm, pc_point)
     # extract grid and corner points
-    grid, points = sampleGrid(sitk_image3d, plane_origin,
-                              directionx, directiony, directionz,
-                              plane_size, spacing)
+    grid, grid_smooth, points = sampleGrid(sitk_image3d, plane_origin,
+                                           directionx, directiony, directionz,
+                                           plane_size, spacing)
     # plane parameters
     plane_params = [np.rad2deg(np.arccos(plane_norm[0])),
                     np.rad2deg(np.arccos(plane_norm[1])),
                     np.rad2deg(np.arccos(plane_norm[2])),
                     d]
 
-    return grid, plane_norm, plane_origin, plane_params, points
+    return grid, grid_smooth, plane_norm, plane_origin, plane_params, points
 
 ###############################################################################
 def getMidSagPlaneFromLandmarks(sitk_image3d, origin,
@@ -314,16 +314,16 @@ def getMidSagPlaneFromLandmarks(sitk_image3d, origin,
     # project origin point on plane
     plane_origin, d = projectPointOnPlane(origin, plane_norm, midsag_point)
     # extract grid and corner points
-    grid, points = sampleGrid(sitk_image3d, plane_origin,
-                              directionx, directiony, directionz,
-                              plane_size, spacing)
+    grid, grid_smooth, points = sampleGrid(sitk_image3d, plane_origin,
+                                           directionx, directiony, directionz,
+                                           plane_size, spacing)
     # plane parameters
     plane_params = [np.rad2deg(np.arccos(plane_norm[0])),
                     np.rad2deg(np.arccos(plane_norm[1])),
                     np.rad2deg(np.arccos(plane_norm[2])),
                     d]
 
-    return grid, plane_norm, plane_origin, plane_params, points
+    return grid, grid_smooth, plane_norm, plane_origin, plane_params, points
 
 ###############################################################################
 
@@ -370,18 +370,18 @@ def getPlane(sitk_image3d, origin, plane_params, plane_size, spacing=(1,1,1)):
     vectory = np.cross(vectorz, vectorx)
     vectory = normalizeUnitVector(vectory)
     # sample a grid in the calculated directions
-    grid, points = sampleGrid(sitk_image3d,
-                              plane_origin,
-                              vectorx,
-                              vectory,
-                              vectorz,
-                              plane_size,
-                              spacing=spacing)
+    grid, grid_smooth, points = sampleGrid(sitk_image3d,
+                                           plane_origin,
+                                           vectorx,
+                                           vectory,
+                                           vectorz,
+                                           plane_size,
+                                           spacing=spacing)
 
     # logger.info('plane_norm {}'.format(np.around(plane_norm,2)))
     # logger.info('plane_origin {}'.format(np.around(plane_origin,2)))
 
-    return grid, plane_norm, plane_origin, plane_params, points
+    return grid, grid_smooth, plane_norm, plane_origin, plane_params, points
 
 
 ###############################################################################

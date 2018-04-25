@@ -44,14 +44,12 @@ BATCH_SIZE = 32
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
 IMAGE_SIZE = (50, 50, 9) # (85, 85, 9)#(27, 27, 27)
 FRAME_HISTORY = 4
-## FRAME SKIP FOR ATARI GAMES
-# ACTION_REPEAT = 4
 # the frequency of updating the target network
 UPDATE_FREQ = 4
 # DISCOUNT FACTOR - NATURE (0.99) - MEDICAL (0.9)
 GAMMA = 0.9 #0.99
 # REPLAY MEMORY SIZE - NATURE (1e6) - MEDICAL (1e5 view-patches)
-MEMORY_SIZE = 1e6
+MEMORY_SIZE = 1e5 # cardiac 1e6 and brain 1e5
 # consume at least 1e6 * 27 * 27 * 27 bytes
 INIT_MEMORY_SIZE = MEMORY_SIZE // 20 #5e4
 # each epoch is 100k played frames
@@ -63,7 +61,8 @@ NUM_ACTIONS = None
 # dqn method - double or dual (default: double)
 METHOD = None
 
-SPACING = (5,5,5)
+SPACING = (5,5,5) # cardiac
+# SPACING = (3,3,3) # brain
 
 ###############################################################################
 ###############################################################################
@@ -77,11 +76,12 @@ logger_dir = os.path.join('train_log', 'expriment_1')
 
 
 def get_player(directory=None, files_list= None,
-               viz=False, train=False, savegif=False):
+               viz=False, train=False, saveGif=False, saveVideo=False):
 
     env = MedicalPlayer(directory=directory, files_list=files_list,
-                        screen_dims=IMAGE_SIZE, viz=viz, savegif=savegif,
-                        train=train, spacing=SPACING, max_num_frames=500)
+                        screen_dims=IMAGE_SIZE, viz=viz, saveGif=saveGif,
+                        saveVideo=saveVideo, train=train, spacing=SPACING,
+                        max_num_frames=500)
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
@@ -97,7 +97,8 @@ class Model(DQNModel):
         """ image: [0,255]"""
         image = image / 255.0
         with argscope(Conv3D,
-                      activation=PReLU.symbolic_function,
+                      # activation=tf.nn.relu, # brain
+                      activation=PReLU.symbolic_function, # cardiac
                       use_bias=True):
             #,argscope(LeakyReLU, alpha=0.01):
             l = (LinearWrap(image)
@@ -190,7 +191,9 @@ if __name__ == '__main__':
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling', 'DuelingDouble'],
                         default='Double')
-    parser.add_argument('--savegif', help='save gif image of the game',
+    parser.add_argument('--saveGif', help='save gif image of the game',
+                        action='store_true', default=False)
+    parser.add_argument('--saveVideo', help='save video of the game',
                         action='store_true', default=False)
     args = parser.parse_args()
 
@@ -217,7 +220,8 @@ if __name__ == '__main__':
             t0 = time.time()
             play_n_episodes(get_player(directory=data_dir,
                                        files_list=test_list, viz=0.01,
-                                       savegif=args.savegif),
+                                       saveGif=args.saveGif,
+                                       saveVideo=args.saveVideo),
                             pred, num_validation_files)
 
             t1 = time.time()
