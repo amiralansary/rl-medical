@@ -12,12 +12,13 @@ environment and mimicking experienced operators' navigation steps.
 
 ---
 ## Results
-
+<p align="center">
 [![cardiac_4ch](images/cardiac_4ch.gif)](videos/cardiac_4ch.mp4)
+</p>
+<p align="center">
+[![brain_acpc](images/brain_acpc.gif)](videos/brain_acpc.mp4)
+</p>
 
-[![brain_acpc_health](images/brain_healthy_acpc.gif)](videos/brain_healthy_acpc.mp4)
-
-[![brain_acpc_health](images/brain_patholigical_acpc.gif)](videos/brain_patholigical_acpc.mp4)
 
 ---
 ## Usage
