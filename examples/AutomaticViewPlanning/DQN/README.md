@@ -12,12 +12,10 @@ environment and mimicking experienced operators' navigation steps.
 
 ---
 ## Results
-<p align="center">
 [![cardiac_4ch](images/cardiac_4ch.gif)](videos/cardiac_4ch.mp4)
-</p>
-<p align="center">
+
 [![brain_acpc](images/brain_acpc.gif)](videos/brain_acpc.mp4)
-</p>
+
 
 
 ---
