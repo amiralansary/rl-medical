@@ -9,17 +9,21 @@ Automatic detection of anatomical landmarks is an important step for a wide rang
 
 ---
 ## Results
+Here are few examples for the learned agent for landmark detection on unseen data:
 
+* Detecting the apex point in short-axis cardiac MRI [(HQ video)](videos/cardiac_apex.mp4)
 <p align="center">
-[<img src="./images/cardiac_apex.gif" width="255">](videos/cardiac_apex.mp4)
+<img src="./images/cardiac_apex.gif" width="255">
 </p>
 
+* Detecting the anterior commissure (AC) point in adult brain MRI [(HQ video)](videos/brain_ac.mp4)
 <p align="center">
-[<img src="./images/brain_ac.gif" width="255">](videos/brain_ac.mp4)
+<img src="./images/brain_ac.gif" width="255">
 </p>
 
+* Detecting the cavum septum pellucidum (CSP) point in fetal head ultrasound [(HQ video)](videos/fetal_csp.mp4)
 <p align="center">
-[<img src="./images/fetal_csp.gif" width="255">](videos/fetal_csp.mp4)
+<img src="./images/fetal_csp.gif" width="255">
 </p>
 
 

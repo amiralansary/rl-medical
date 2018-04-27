@@ -12,12 +12,17 @@ environment and mimicking experienced operators' navigation steps.
 
 ---
 ## Results
-<p align="center">
-[<img src="./images/cardiac_4ch.gif" width="512">](videos/cardiac_4ch.mp4)
-</p>
+
+* Detecting the 4-chamber plane in short-axis cardiac MRI acquisition [(HQ video)](videos/brain_acpc.mp4)
 
 <p align="center">
-[<img src="./images/brain_acpc.gif" width="512">](videos/brain_acpc.mp4)
+[<img src="./images/cardiac_4ch.gif" width="400">](videos/cardiac_4ch.mp4)
+</p>
+
+* Detecting the axial plane containing the anterior and posterior commissure (ACPC) line in adult brain MRI acquisition [(HQ video)](videos/brain_acpc.mp4)
+
+<p align="center">
+<img src="./images/brain_acpc.gif" width="400">
 </p>
 
 
