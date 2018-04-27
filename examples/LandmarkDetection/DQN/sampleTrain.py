@@ -374,7 +374,7 @@ class filesListFetalUSLandmark(files):
 
         while True:
             for idx in indexes:
-                sitk_image, image = niftiImage().decode(self.images_list[idx])
+                sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmark = self.landmarks_list[idx]
                 image_filename = self.images_list[idx][:-7]
                 yield image, landmark, image_filename, sitk_image.GetSpacing()
@@ -390,7 +390,7 @@ class filesListFetalUSLandmark(files):
 
         while True:
             for idx in indexes:
-                sitk_image, image = niftiImage().decode(self.images_list[idx])
+                sitk_image, image = NiftiImage().decode(self.images_list[idx])
                 landmarks = self.all_landmarks_list[idx]
                 image_filename = self.images_list[idx][:-7]
                 yield image, landmarks, image_filename

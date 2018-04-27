@@ -84,24 +84,29 @@ class SimpleImageViewer(object):
         glVertex3f(x, y, z)
         glEnd()
 
-    def draw_box(self, x, y, size_x, size_y):
+    def draw_rect(self, x_min_init, y_min, x_max_init, y_max):
         main_batch = pyglet.graphics.Batch()
-
-        # for is less likely to get stuck than while
+        # fix location
+        x_max = self.img_height - x_max_init
+        x_min = self.img_height - x_min_init
+        # draw lines
+        glColor4f(0.8, 0.8, 0.0, 1.0)
         main_batch.add(2, gl.GL_LINES, None,
-                       ('v2f', (x, y, x+size_x, y)),
-                       ('c3B', (255, 0, 0, 0, 255, 0)))
+                       ('v2f', (y_min, x_min, y_max, x_min)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
         main_batch.add(2, gl.GL_LINES, None,
-                       ('v2f', (x, y, x, y+size_y)),
-                       ('c3B', (255, 0, 0, 0, 255, 0)))
+                       ('v2f', (y_min, x_min, y_min, x_max)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
         main_batch.add(2, gl.GL_LINES, None,
-                       ('v2f', (x+size_x, y+size_y, x, y+size_y)),
-                       ('c3B', (255, 0, 0, 0, 255, 0)))
+                       ('v2f', (y_max, x_max, y_min, x_max)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
         main_batch.add(2, gl.GL_LINES, None,
-                       ('v2f', (x+size_x, y+size_y, x+size_x, y)),
-                       ('c3B', (255, 0, 0, 0, 255, 0)))
+                       ('v2f', (y_max, x_max, y_max, x_min)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
 
         main_batch.draw()
+        # reset color
+        glColor4f(1.0, 1.0, 1.0, 1.0);
 
     def draw_circle(self, radius=10, res=30, pos_x=0, pos_y=0,
                     color=(1.0,1.0,1.0,1.0),**attrs):

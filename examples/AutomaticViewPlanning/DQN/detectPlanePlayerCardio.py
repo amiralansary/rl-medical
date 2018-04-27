@@ -29,7 +29,7 @@ from gym import spaces
 try:
     import pyglet
 except ImportError as e:
-    reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'. But if you really just want to install all Gym dependencies and not have to think about it, 'pip install -e .[all]' or 'pip install gym[all]' will do it.")
+    reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'.")
 
 
 from tensorpack.utils.utils import get_rng
@@ -739,7 +739,7 @@ class MedicalPlayer(gym.Env):
             if (self.cnt <=1):
                 if os.path.isdir(dirname):
                     logger.warn("""Log directory {} exists! Use 'd' to delete it. """.format(dirname))
-                    act = input("select action: d (delete) / q (quit):").lower().strip()
+                    act = input("select action: d (delete) / q (quit): ").lower().strip()
                     if act == 'd':
                         shutil.rmtree(dirname, ignore_errors=True)
                     else:

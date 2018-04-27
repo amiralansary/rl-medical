@@ -10,7 +10,16 @@ environment and mimicking experienced operators' navigation steps.
 <img style="float: center;" src="images/framework.png" width="512">
 </p>
 
+---
+## Results
 
+[![cardiac_4ch](images/cardiac_4ch.gif)](videos/cardiac_4ch.mp4)
+
+[![brain_acpc_health](images/brain_healthy_acpc.gif)](videos/brain_healthy_acpc.mp4)
+
+[![brain_acpc_health](images/brain_patholigical_acpc.gif)](videos/brain_patholigical_acpc.mp4)
+
+---
 ## Usage
 
 ### Train
@@ -23,6 +32,7 @@ python DQN.py --algo DQN --gpu 0
 python DQN.py --algo DQN --gpu 0 --task play --load path_to_trained_model
 ```
 
+---
 ## Citation
 
 If you use this code in your research, please cite this paper:

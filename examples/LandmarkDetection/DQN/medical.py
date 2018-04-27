@@ -20,13 +20,14 @@ import random
 import threading
 import numpy as np
 from tensorpack import logger
-from collections import (Counter, defaultdict, deque)
+from collections import (Counter, defaultdict, deque, namedtuple)
 
-import scipy as sp
 import cv2
 import math
 import time
 from PIL import Image
+import subprocess
+import shutil
 
 import gym
 from gym import spaces
@@ -34,7 +35,7 @@ from gym import spaces
 try:
     import pyglet
 except ImportError as e:
-    reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'. But if you really just want to install all Gym dependencies and not have to think about it, 'pip install -e .[all]' or 'pip install gym[all]' will do it.")
+    reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'.")
 
 
 from tensorpack.utils.utils import get_rng
@@ -48,6 +49,8 @@ __all__ = ['MedicalPlayer','FrameStack']
 
 _ALE_LOCK = threading.Lock()
 
+Rectangle = namedtuple('Rectangle', ['xmin', 'xmax', 'ymin', 'ymax', 'zmin', 'zmax'])
+
 # ===================================================================
 # =================== 3d medical environment ========================
 # ===================================================================
@@ -59,8 +62,8 @@ class MedicalPlayer(gym.Env):
     an observation and a reward."""
 
     def __init__(self, directory=None, viz=False, train=False, files_list=None,
-                 screen_dims=(27,27,27), history_length=16, multiscale=True,
-                 max_num_frames=0, savegif=False):
+                 screen_dims=(27,27,27), history_length=20, multiscale=True,
+                 max_num_frames=0, saveGif=False, saveVideo=False):
         """
         :param train_directory: environment or game name
         :param viz: visualization
@@ -109,7 +112,8 @@ class MedicalPlayer(gym.Env):
         # stores information: terminal, score, distError
         self.info = None
         # option to save display as gif
-        self.savegif = savegif
+        self.saveGif = saveGif
+        self.saveVideo = saveVideo
         # training flag
         self.train = train
         # image dimension (2D/3D)
@@ -146,10 +150,12 @@ class MedicalPlayer(gym.Env):
         self._history_length = history_length
         self._loc_history = [(0,) * self.dims] * self._history_length
         self._qvalues_history = [(0,) * self.actions] * self._history_length
+        # initialize rectangle limits from input image coordinates
+        self.rectangle = Rectangle(0,0,0,0,0,0)
         # add your data loader here
         # self.files = filesListBrainMRLandmark(directory,files_list)
-        # self.files = filesListFetalUSLandmark(directory,files_list)
-        self.files = filesListCardioMRLandmark(directory,files_list)
+        self.files = filesListFetalUSLandmark(directory,files_list)
+        # self.files = filesListCardioMRLandmark(directory,files_list)
         # prepare file sampler
         self.filepath = None
         self.sampled_files = self.files.sample_circular()
@@ -166,6 +172,7 @@ class MedicalPlayer(gym.Env):
         restart current episoide
         """
         self.terminal = False
+        self.cnt = 0 # counter to limit number of steps per episodes
         self.num_games.feed(1)
         self.current_episode_score.reset()  # reset the stat counter
         self._loc_history = [(0,) * self.dims] * self._history_length
@@ -207,10 +214,16 @@ class MedicalPlayer(gym.Env):
 
         # multiscale (e.g. start with 3 -> 2 -> 1)
         if self.multiscale:
-            self.action_step = 6
-            self.xscale = 2
-            self.yscale = 2
-            self.zscale = 2
+            ## brain
+            self.action_step = 9
+            self.xscale = 3
+            self.yscale = 3
+            self.zscale = 3
+            ## cardiac
+            # self.action_step = 6
+            # self.xscale = 2
+            # self.yscale = 2
+            # self.zscale = 2
         else:
             self.action_step = 1
             self.xscale = 1
@@ -357,6 +370,10 @@ class MedicalPlayer(gym.Env):
                 self.terminal = True
                 self.num_success.feed(1)
 
+        # terminate if maximum number of steps is reached
+        self.cnt += 1
+        if self.cnt >= self.max_num_frames: self.terminal = True
+
         # update history buffer with new location and qvalues
         self.cur_dist = self.calcDistance(self._location,
                                           self._target_loc,
@@ -391,11 +408,6 @@ class MedicalPlayer(gym.Env):
             if self.viz:
                 if isinstance(self.viz, float):
                     self.display()
-
-        self.cnt += 1
-        if self.cnt >= self.max_num_frames:
-            self.terminal = True
-            self.cnt = 0
 
         distance_error = self.cur_dist
         self.current_episode_score.feed(self.reward)
@@ -493,6 +505,11 @@ class MedicalPlayer(gym.Env):
 
         screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[xmin:xmax:self.xscale, ymin:ymax:self.yscale, zmin:zmax:self.zscale]
 
+        # update rectangle limits from input image coordinates
+        self.rectangle = Rectangle(xmin,xmax,
+                                   ymin,ymax,
+                                   zmin,zmax)
+
         return screen
 
     def get_plane(self,z=0):
@@ -562,12 +579,12 @@ class MedicalPlayer(gym.Env):
         img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
         # rescale image
         # INTER_NEAREST, INTER_LINEAR, INTER_AREA, INTER_CUBIC, INTER_LANCZOS4
-        scale_x=2
-        scale_y=2
-        
-        img = cv2.resize(img,
-                         (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
-                         interpolation=cv2.INTER_LINEAR)
+        scale_x=1
+        scale_y=1
+        #
+        # img = cv2.resize(img,
+        #                  (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
+        #                  interpolation=cv2.INTER_LINEAR)
         # skip if there is a viewer open
         if (not self.viewer) and self.viz:
             from viewer import SimpleImageViewer
@@ -595,21 +612,25 @@ class MedicalPlayer(gym.Env):
                                 pos_x = scale_x * current_point[0],
                                 pos_y = scale_y * current_point[1],
                                 color = (0.0,0.0,1.0,1.0))
+        # draw a box around the agent - what the network sees ROI
+        self.viewer.draw_rect(self.rectangle.xmin, self.rectangle.ymin,
+                              self.rectangle.xmax, self.rectangle.ymax)
+        self.viewer.display_text('Agent ', color = (204,204,0,255),
+                                 x = self.rectangle.xmin - 15,
+                                 y = self.rectangle.ymin)
         # display info
-        color = (0,255,0,255) if self.reward>0 else (255,0,0,255)
-        text = 'dist error ' + str(round(self.cur_dist,3)) + 'mm'
-
-        self.viewer.display_text(text, color=color, x=10,
-                                 y=img.shape[0])
-        text = 'spacing ' + str(self.xscale)
-        self.viewer.display_text(text, color=color, x=10,
-                                 y=30)
+        color = (0,204,0,255) if self.reward>0 else (204,0,0,255)
+        text = 'Error ' + str(round(self.cur_dist,3)) + 'mm'
+        self.viewer.display_text(text, color=color, x=10, y=20)
+        text = 'Spacing ' + str(self.xscale)
+        self.viewer.display_text(text, color=color,
+                                 x=10, y=self._image_dims[1]-80)
 
         # render and wait (viz) time between frames
         self.viewer.render()
         # time.sleep(self.viz)
         # save gif
-        if self.savegif:
+        if self.saveGif:
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             data = image_data.get_data('RGB', image_data.width * 3)
             arr = np.array(bytearray(data)).astype('uint8')
@@ -619,9 +640,31 @@ class MedicalPlayer(gym.Env):
 
             if not self.terminal:
                 gifname = self.filename.split('.')[0] + '.gif'
-                self.viewer.savegif(gifname,arr=self.gif_buffer,
+                self.viewer.saveGif(gifname,arr=self.gif_buffer,
                                     duration=self.viz)
-        # sys.exit()
+        if self.saveVideo:
+            dirname = 'tmp_video'
+            if (self.cnt <=1):
+                if os.path.isdir(dirname):
+                    logger.warn("""Log directory {} exists! Use 'd' to delete it. """.format(dirname))
+                    act = input("select action: d (delete) / q (quit): ").lower().strip()
+                    if act == 'd':
+                        shutil.rmtree(dirname, ignore_errors=True)
+                    else:
+                        raise OSError("Directory {} exits!".format(dirname))
+                os.mkdir(dirname)
+
+            frame = dirname + '/' + '%04d' % self.cnt + '.png'
+            pyglet.image.get_buffer_manager().get_color_buffer().save(frame)
+            if self.terminal:
+                resolution = str(3*self.viewer.img_width) + 'x' + str(3*self.viewer.img_height)
+                save_cmd = ['ffmpeg','-f', 'image2', '-framerate', '30',
+                    '-pattern_type', 'sequence', '-start_number', '0', '-r',
+                    '6', '-i', dirname + '/%04d.png', '-s', resolution,
+                    '-vcodec', 'libx264', '-b:v', '2567k', self.filename+'.mp4']
+                subprocess.check_output(save_cmd)
+                shutil.rmtree(dirname, ignore_errors=True)
+
 
 class DiscreteActionSpace(object):
 

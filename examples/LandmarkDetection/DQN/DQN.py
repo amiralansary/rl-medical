@@ -61,12 +61,12 @@ EVAL_EPISODE = 50
 
 ###############################################################################
 
-def get_player(directory=None, files_list= None,
-               viz=False, train=False, savegif=False):
+def get_player(directory=None, files_list= None, viz=False,
+               train=False, saveGif=False, saveVideo=False):
     # atari max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
-                        viz=viz, savegif=savegif, train=train,
-                        files_list=files_list, max_num_frames=1500)
+                        viz=viz, saveGif=saveGif, saveVideo=saveVideo,
+                        train=train, files_list=files_list, max_num_frames=1500)
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
@@ -187,7 +187,9 @@ if __name__ == '__main__':
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling','DuelingDouble'],
                         default='DQN')
-    parser.add_argument('--savegif', help='save gif image of the game',
+    parser.add_argument('--saveGif', help='save gif image of the game',
+                        action='store_true', default=False)
+    parser.add_argument('--saveVideo', help='save video of the game',
                         action='store_true', default=False)
     args = parser.parse_args()
 
@@ -212,7 +214,8 @@ if __name__ == '__main__':
         if args.task == 'play':
             play_n_episodes(get_player(directory=data_dir,
                                        files_list=test_list, viz=0.01,
-                                       savegif=args.savegif),
+                                       saveGif=args.saveGif,
+                                       saveVideo=args.saveVideo),
                             pred, num_validation_files)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)

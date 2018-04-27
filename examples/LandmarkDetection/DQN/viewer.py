@@ -109,12 +109,40 @@ class SimpleImageViewer(object):
         glColor4f(1.0, 1.0, 1.0, 1.0);
 
 
-    def display_text(self, text, x, y, color=(0,0,255,255), #RGBA
+    def draw_rect(self, x_min_init, y_min, x_max_init, y_max):
+        main_batch = pyglet.graphics.Batch()
+        # fix location
+        x_max = self.img_height - x_max_init
+        x_min = self.img_height - x_min_init
+        # draw lines
+        glColor4f(0.8, 0.8, 0.0, 1.0)
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (y_min, x_min, y_max, x_min)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (y_min, x_min, y_min, x_max)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (y_max, x_max, y_min, x_max)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
+        main_batch.add(2, gl.GL_LINES, None,
+                       ('v2f', (y_max, x_max, y_max, x_min)))
+                       # ('c3B', (204, 204, 0, 0, 255, 0)))
+
+        main_batch.draw()
+        # reset color
+        glColor4f(1.0, 1.0, 1.0, 1.0);
+
+
+
+    def display_text(self, text, x, y, color=(0,0,204,255), #RGBA
                      anchor_x='left', anchor_y='top'):
+        x = int(self.img_height - x)
+        y = int(y)
         label = pyglet.text.Label(text,
                                   font_name='Ariel', color=color,
-                                  font_size=15, #bold=True,
-                                  x=x, y=y,
+                                  font_size=8, bold=True,
+                                  x=y, y=x,
                                   anchor_x=anchor_x, anchor_y=anchor_y)
         label.draw()
 
@@ -122,7 +150,7 @@ class SimpleImageViewer(object):
     def render(self):
         self.window.flip()
 
-    def savegif(self,filename=None,arr=None,duration=0):
+    def saveGif(self,filename=None,arr=None,duration=0):
         arr[0].save(filename, save_all=True,
                     append_images=arr[1:],
                     duration=500,
