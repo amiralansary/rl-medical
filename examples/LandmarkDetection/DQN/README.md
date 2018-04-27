@@ -10,11 +10,18 @@ Automatic detection of anatomical landmarks is an important step for a wide rang
 ---
 ## Results
 
-[![cardiac_apex](images/cardiac_apex.gif)](videos/cardiac_apex.mp4)
+<p align="center">
+[<img src="./images/cardiac_apex.gif" width="255">](videos/cardiac_apex.mp4)
+</p>
 
-[![brain_ac](images/brain_ac.gif)](videos/brain_ac.mp4)
+<p align="center">
+[<img src="./images/brain_ac.gif" width="255">](videos/brain_ac.mp4)
+</p>
 
-[![fetal_csp](images/fetal_csp.gif)](videos/fetal_csp.mp4)
+<p align="center">
+[<img src="./images/fetal_csp.gif" width="255">](videos/fetal_csp.mp4)
+</p>
+
 
 ---
 

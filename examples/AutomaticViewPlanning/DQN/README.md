@@ -12,9 +12,13 @@ environment and mimicking experienced operators' navigation steps.
 
 ---
 ## Results
-[![cardiac_4ch](images/cardiac_4ch.gif)](videos/cardiac_4ch.mp4)
+<p align="center">
+[<img src="./images/cardiac_4ch.gif" width="512">](videos/cardiac_4ch.mp4)
+</p>
 
-[![brain_acpc](images/brain_acpc.gif)](videos/brain_acpc.mp4)
+<p align="center">
+[<img src="./images/brain_acpc.gif" width="512">](videos/brain_acpc.mp4)
+</p>
 
 
 
