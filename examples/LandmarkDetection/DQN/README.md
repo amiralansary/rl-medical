@@ -9,7 +9,7 @@ Automatic detection of anatomical landmarks is an important step for a wide rang
 
 ---
 ## Results
-Here are few examples for the learned agent for landmark detection on unseen data:
+Here are few examples of the learned agent for landmark detection on unseen data:
 
 * Detecting the apex point in short-axis cardiac MRI [(HQ video)](videos/cardiac_apex.mp4)
 <p align="center">

@@ -13,10 +13,12 @@ environment and mimicking experienced operators' navigation steps.
 ---
 ## Results
 
-* Detecting the 4-chamber plane in short-axis cardiac MRI acquisition [(HQ video)](videos/brain_acpc.mp4)
+Here are few examples of the learned agent for plane detection on unseen data:
+
+* Detecting the 4-chamber plane in short-axis cardiac MRI acquisition [(HQ video)](videos/cardiac_4ch.mp4)
 
 <p align="center">
-[<img src="./images/cardiac_4ch.gif" width="400">](videos/cardiac_4ch.mp4)
+<img src="./images/cardiac_4ch.gif" width="400">
 </p>
 
 * Detecting the axial plane containing the anterior and posterior commissure (ACPC) line in adult brain MRI acquisition [(HQ video)](videos/brain_acpc.mp4)
