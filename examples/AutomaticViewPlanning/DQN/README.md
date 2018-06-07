@@ -57,6 +57,6 @@ If you use this code in your research, please cite this paper:
     and Kamnitsas, Konstantinos and Hou, Benjamin and McDonagh, Steven
     and Glocker, Ben and Kainz, Bernhard and Rueckert, Daniel},
   year={2018},
-  note={Under review}
+  note={Accepted for MICCAI}
   }
  ```
