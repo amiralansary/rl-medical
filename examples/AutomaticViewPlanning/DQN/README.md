@@ -1,4 +1,4 @@
-# Anatomical Landmark Detection
+# Automatic View Planning
 
 Standard view images are important in clinical practice as they provide a means
 to perform biometric measurements from similar anatomical regions.
