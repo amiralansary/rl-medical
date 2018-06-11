@@ -7,7 +7,7 @@ framework that enables a natural learning paradigm by interacting with the
 environment and mimicking experienced operators' navigation steps.
 
 <p align="center">
-<img style="float: center;" src="images/framework.png" width="624">
+<img style="float: center;" src="images/framework.png" width="720">
 </p>
 
 ---
