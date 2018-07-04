@@ -30,8 +30,10 @@ from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
                         logger, TrainConfig, ModelSaver, PeriodicTrigger,
                         ScheduledHyperParamSetter, ObjAttrParam,
                         HumanHyperParamSetter, argscope, RunOp, LinearWrap,
-                        FullyConnected, LeakyReLU, PReLU, SimpleTrainer,
+                        FullyConnected, PReLU, SimpleTrainer,
                         launch_train_with_config)
+
+LeakyRelu = tf.nn.leaky_relu
 ###############################################################################
 data_dir = 'data_dir'
 train_list = 'list_of_train_filenames.txt'
