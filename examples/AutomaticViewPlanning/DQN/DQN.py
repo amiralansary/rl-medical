@@ -27,7 +27,7 @@ from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
                         logger, TrainConfig, ModelSaver, PeriodicTrigger,
                         ScheduledHyperParamSetter, ObjAttrParam,
                         HumanHyperParamSetter, argscope, RunOp, LinearWrap,
-                        FullyConnected, LeakyReLU, PReLU, SimpleTrainer,
+                        FullyConnected, PReLU, SimpleTrainer,
                         launch_train_with_config)
 
 from tensorpack.input_source import QueueInput
@@ -37,6 +37,7 @@ from common import Evaluator, eval_model_multithread, play_n_episodes
 from DQNModel import Model3D as DQNModel
 from expreplay import ExpReplay
 
+LeakyReLU = tf.nn.leaky_relu 
 ###############################################################################
 
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS UNKNOWN
