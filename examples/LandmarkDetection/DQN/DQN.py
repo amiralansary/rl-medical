@@ -35,6 +35,7 @@ from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
 
 LeakyRelu = tf.nn.leaky_relu
 ###############################################################################
+# import your data here
 data_dir = 'data_dir'
 train_list = 'list_of_train_filenames.txt'
 test_list = 'list_of_test_filenames.txt'
@@ -47,6 +48,7 @@ BATCH_SIZE = 48
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
 IMAGE_SIZE = (45, 45, 45)
 # how many frames to keep
+# in other words, how many observations the network can see
 FRAME_HISTORY = 4
 # the frequency of updating the target network
 UPDATE_FREQ = 4
@@ -58,7 +60,9 @@ MEMORY_SIZE = 1e5#6
 INIT_MEMORY_SIZE = MEMORY_SIZE // 20 #5e4
 # each epoch is 100k played frames
 STEPS_PER_EPOCH = 10000 // UPDATE_FREQ * 10
-# Evaluation episode
+# num training epochs before we evaluate our model
+EPOCHS_PER_EVAL = 2
+# the number of episodes to run when evaluating
 EVAL_EPISODE = 50
 
 ###############################################################################
@@ -165,7 +169,7 @@ def get_config():
                 Evaluator(nr_eval=EVAL_EPISODE, input_names=['state'],
                           output_names=['Qvalue'], directory=data_dir,
                           files_list=test_list, get_player_fn=get_player),
-                every_k_epochs=2),
+                every_k_epochs=EPOCHS_PER_EVAL),
             HumanHyperParamSetter('learning_rate'),
         ],
         steps_per_epoch=STEPS_PER_EPOCH,
