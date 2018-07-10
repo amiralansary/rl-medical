@@ -6,12 +6,15 @@
 import csv
 import itertools
 
+
 def warn(*args, **kwargs):
     pass
+
+
 import warnings
+
 warnings.warn = warn
 warnings.simplefilter("ignore", category=PendingDeprecationWarning)
-
 
 import os
 import sys
@@ -37,19 +40,18 @@ try:
 except ImportError as e:
     reraise(suffix="HINT: you can install pyglet directly via 'pip install pyglet'.")
 
-
 from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
 
 from IPython.core.debugger import set_trace
 from sampleTrain import *
 
-
-__all__ = ['MedicalPlayer','FrameStack']
+__all__ = ['MedicalPlayer', 'FrameStack']
 
 _ALE_LOCK = threading.Lock()
 
 Rectangle = namedtuple('Rectangle', ['xmin', 'xmax', 'ymin', 'ymax', 'zmin', 'zmax'])
+
 
 # ===================================================================
 # =================== 3d medical environment ========================
@@ -62,7 +64,7 @@ class MedicalPlayer(gym.Env):
     an observation and a reward."""
 
     def __init__(self, directory=None, viz=False, train=False, files_list=None,
-                 screen_dims=(27,27,27), history_length=20, multiscale=True,
+                 screen_dims=(27, 27, 27), history_length=20, multiscale=True,
                  max_num_frames=0, saveGif=False, saveVideo=False):
         """
         :param train_directory: environment or game name
@@ -78,7 +80,6 @@ class MedicalPlayer(gym.Env):
         :max_num_frames: maximum numbe0r of frames per episode.
         """
         # python DQN_midl2018.py --task play --gpu 0 --algo DuelingDouble --load train_log/DuelDoubleDQN_multiscale_brain_mri_point_ac_ROI_45_45_45_midl2018/model-350000
-
 
         # ######################################################################
         # ## generate evaluation results from 19 different points
@@ -130,7 +131,7 @@ class MedicalPlayer(gym.Env):
         with _ALE_LOCK:
             self.rng = get_rng(self)
             # visualization setup
-            if isinstance(viz, six.string_types):   # check if viz is a string
+            if isinstance(viz, six.string_types):  # check if viz is a string
                 assert os.path.isdir(viz), viz
                 viz = 0
             if isinstance(viz, int):
@@ -142,7 +143,7 @@ class MedicalPlayer(gym.Env):
         # stat counter to store current score or accumlated reward
         self.current_episode_score = StatCounter()
         # get action space and minimal action set
-        self.action_space = spaces.Discrete(6) # change number actions here
+        self.action_space = spaces.Discrete(6)  # change number actions here
         self.actions = self.action_space.n
         self.observation_space = spaces.Box(low=0, high=255,
                                             shape=self.screen_dims)
@@ -151,10 +152,10 @@ class MedicalPlayer(gym.Env):
         self._loc_history = [(0,) * self.dims] * self._history_length
         self._qvalues_history = [(0,) * self.actions] * self._history_length
         # initialize rectangle limits from input image coordinates
-        self.rectangle = Rectangle(0,0,0,0,0,0)
+        self.rectangle = Rectangle(0, 0, 0, 0, 0, 0)
         # add your data loader here
         # self.files = filesListBrainMRLandmark(directory,files_list)
-        self.files = filesListFetalUSLandmark(directory,files_list)
+        self.files = filesListFetalUSLandmark(directory, files_list)
         # self.files = filesListCardioMRLandmark(directory,files_list)
         # prepare file sampler
         self.filepath = None
@@ -172,7 +173,7 @@ class MedicalPlayer(gym.Env):
         restart current episoide
         """
         self.terminal = False
-        self.cnt = 0 # counter to limit number of steps per episodes
+        self.cnt = 0  # counter to limit number of steps per episodes
         self.num_games.feed(1)
         self.current_episode_score.reset()  # reset the stat counter
         self._loc_history = [(0,) * self.dims] * self._history_length
@@ -236,37 +237,36 @@ class MedicalPlayer(gym.Env):
         ## select random starting point
         # for random point selection - skip border thickness
         if self.train:
-            skip_thickness = ((int)(self._image_dims[0]/5),
-                              (int)(self._image_dims[1]/5),
-                              (int)(self._image_dims[2]/5))
+            skip_thickness = (int(self._image_dims[0] / 5),
+                              int(self._image_dims[1] / 5),
+                              int(self._image_dims[2] / 5))
         else:
-            skip_thickness = ((int)(self._image_dims[0]/4),
-                              (int)(self._image_dims[1]/4),
-                              (int)(self._image_dims[2]/4))
+            skip_thickness = (int(self._image_dims[0] / 4),
+                              int(self._image_dims[1] / 4),
+                              int(self._image_dims[2] / 4))
 
-        x = self.rng.randint(0+skip_thickness[0],
-                             self._image_dims[0]-skip_thickness[0])
-        y = self.rng.randint(0+skip_thickness[1],
-                             self._image_dims[1]-skip_thickness[1])
-        z = self.rng.randint(0+skip_thickness[2],
-                             self._image_dims[2]-skip_thickness[2])
+        x = self.rng.randint(0 + skip_thickness[0],
+                             self._image_dims[0] - skip_thickness[0])
+        y = self.rng.randint(0 + skip_thickness[1],
+                             self._image_dims[1] - skip_thickness[1])
+        z = self.rng.randint(0 + skip_thickness[2],
+                             self._image_dims[2] - skip_thickness[2])
         #######################################################################
 
-        self._location = (x,y,z)
-        self._start_location = (x,y,z)
-        self._qvalues = [0,] * self.actions
+        self._location = (x, y, z)
+        self._start_location = (x, y, z)
+        self._qvalues = [0, ] * self.actions
         self._screen = self._current_state()
         self.cur_dist = self.calcDistance(self._location,
                                           self._target_loc,
                                           self.spacing)
 
-    def calcDistance(self, points1, points2, spacing=(1,1,1)):
-         ''' calculate the distance between two points in mm'''
-         spacing = np.array(spacing)
-         points1 = spacing * np.array(points1)
-         points2 = spacing * np.array(points2)
-         return np.linalg.norm(points1 - points2)
-
+    def calcDistance(self, points1, points2, spacing=(1, 1, 1)):
+        ''' calculate the distance between two points in mm'''
+        spacing = np.array(spacing)
+        points1 = spacing * np.array(points1)
+        points2 = spacing * np.array(points2)
+        return np.linalg.norm(points1 - points2)
 
     def step(self, act, qvalues):
         """The environment's step function returns exactly what we need.
@@ -299,57 +299,57 @@ class MedicalPlayer(gym.Env):
         go_out = False
 
         # UP Z+ -----------------------------------------------------------
-        if (act==0):
+        if (act == 0):
             next_location = (current_loc[0],
                              current_loc[1],
-                             round(current_loc[2]+self.action_step))
-            if (next_location[2]>=self._image_dims[2]):
+                             round(current_loc[2] + self.action_step))
+            if (next_location[2] >= self._image_dims[2]):
                 # print(' trying to go out the image Z+ ',)
                 next_location = current_loc
                 go_out = True
 
         # FORWARD Y+ ---------------------------------------------------------
-        if (act==1):
+        if (act == 1):
             next_location = (current_loc[0],
-                             round(current_loc[1]+self.action_step),
+                             round(current_loc[1] + self.action_step),
                              current_loc[2])
-            if (next_location[1]>=self._image_dims[1]):
+            if (next_location[1] >= self._image_dims[1]):
                 # print(' trying to go out the image Y+ ',)
                 next_location = current_loc
                 go_out = True
         # RIGHT X+ -----------------------------------------------------------
-        if (act==2):
-            next_location = (round(current_loc[0]+self.action_step),
+        if (act == 2):
+            next_location = (round(current_loc[0] + self.action_step),
                              current_loc[1],
                              current_loc[2])
-            if (next_location[0]>=self._image_dims[0]):
+            if (next_location[0] >= self._image_dims[0]):
                 # print(' trying to go out the image X+ ',)
                 next_location = current_loc
                 go_out = True
         # LEFT X- -----------------------------------------------------------
-        if (act==3):
-            next_location = (round(current_loc[0]-self.action_step),
+        if (act == 3):
+            next_location = (round(current_loc[0] - self.action_step),
                              current_loc[1],
                              current_loc[2])
-            if (next_location[0]<=0):
+            if (next_location[0] <= 0):
                 # print(' trying to go out the image X- ',)
                 next_location = current_loc
                 go_out = True
         # BACKWARD Y- ---------------------------------------------------------
-        if (act==4):
+        if (act == 4):
             next_location = (current_loc[0],
-                             round(current_loc[1]-self.action_step),
+                             round(current_loc[1] - self.action_step),
                              current_loc[2])
-            if (next_location[1]<=0):
+            if (next_location[1] <= 0):
                 # print(' trying to go out the image Y- ',)
                 next_location = current_loc
                 go_out = True
         # DOWN Z- -----------------------------------------------------------
-        if (act==5):
+        if (act == 5):
             next_location = (current_loc[0],
                              current_loc[1],
-                             round(current_loc[2]-self.action_step))
-            if (next_location[2]<=0):
+                             round(current_loc[2] - self.action_step))
+            if (next_location[2] <= 0):
                 # print(' trying to go out the image Z- ',)
                 next_location = current_loc
                 go_out = True
@@ -366,7 +366,7 @@ class MedicalPlayer(gym.Env):
 
         # terminate if the distance is less than 1 during trainig
         if self.train:
-            if self.cur_dist<=1:
+            if self.cur_dist <= 1:
                 self.terminal = True
                 self.num_success.feed(1)
 
@@ -390,18 +390,18 @@ class MedicalPlayer(gym.Env):
             # multi-scale steps
             if self.multiscale:
                 if self.xscale > 1:
-                    self.xscale -=1
-                    self.yscale -=1
-                    self.zscale -=1
+                    self.xscale -= 1
+                    self.yscale -= 1
+                    self.zscale -= 1
                     self.action_step = int(self.action_step / 3)
                     self._clear_history()
                 # terminate if scale is less than 1
                 else:
                     self.terminal = True
-                    if self.cur_dist<=1: self.num_success.feed(1)
+                    if self.cur_dist <= 1: self.num_success.feed(1)
             else:
                 self.terminal = True
-                if self.cur_dist<=1: self.num_success.feed(1)
+                if self.cur_dist <= 1: self.num_success.feed(1)
 
         # render screen if viz is on
         with _ALE_LOCK:
@@ -412,7 +412,8 @@ class MedicalPlayer(gym.Env):
         distance_error = self.cur_dist
         self.current_episode_score.feed(self.reward)
 
-        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error, 'filename':self.filename}
+        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error,
+                'filename': self.filename}
 
         # #######################################################################
         # ## generate evaluation results from 19 different points
@@ -465,60 +466,62 @@ class MedicalPlayer(gym.Env):
     def _current_state(self):
         # initialize screen with zeros - all background
         screen = np.zeros((self.screen_dims)).astype(self._image.data.dtype)
-        screen_xmin, screen_ymin, screen_zmin = 0, 0 ,0
+        screen_xmin, screen_ymin, screen_zmin = 0, 0, 0
         screen_xmax, screen_ymax, screen_zmax = self.screen_dims
         # extract boundary locations
         if self.xscale % 2:
-            xmin = self._location[0] - int(self.width  * self.xscale / 2) - 1
-            xmax = self._location[0] + int(self.width  * self.xscale / 2)
+            xmin = self._location[0] - int(self.width * self.xscale / 2) - 1
+            xmax = self._location[0] + int(self.width * self.xscale / 2)
             ymin = self._location[1] - int(self.height * self.yscale / 2) - 1
             ymax = self._location[1] + int(self.height * self.yscale / 2)
-            zmin = self._location[2] - int(self.depth  * self.zscale / 2) - 1
-            zmax = self._location[2] + int(self.depth  * self.zscale / 2)
+            zmin = self._location[2] - int(self.depth * self.zscale / 2) - 1
+            zmax = self._location[2] + int(self.depth * self.zscale / 2)
         else:
-            xmin = self._location[0] - round(self.width  * self.xscale / 2)
-            xmax = self._location[0] + round(self.width  * self.xscale / 2)
+            xmin = self._location[0] - round(self.width * self.xscale / 2)
+            xmax = self._location[0] + round(self.width * self.xscale / 2)
             ymin = self._location[1] - round(self.height * self.yscale / 2)
             ymax = self._location[1] + round(self.height * self.yscale / 2)
-            zmin = self._location[2] - round(self.depth  * self.zscale / 2)
-            zmax = self._location[2] + round(self.depth  * self.zscale / 2)
+            zmin = self._location[2] - round(self.depth * self.zscale / 2)
+            zmax = self._location[2] + round(self.depth * self.zscale / 2)
 
         # check if they violate image boundary and fix it
-        if xmin<0:
+        if xmin < 0:
             xmin = 0
-            screen_xmin = screen_xmax - len(np.arange(xmin,xmax,self.xscale))
-        if ymin<0:
+            screen_xmin = screen_xmax - len(np.arange(xmin, xmax, self.xscale))
+        if ymin < 0:
             ymin = 0
-            screen_ymin = screen_ymax - len(np.arange(ymin,ymax,self.yscale))
-        if zmin<0:
+            screen_ymin = screen_ymax - len(np.arange(ymin, ymax, self.yscale))
+        if zmin < 0:
             zmin = 0
-            screen_zmin = screen_zmax - len(np.arange(zmin,zmax,self.zscale))
-        if xmax>self._image_dims[0]:
+            screen_zmin = screen_zmax - len(np.arange(zmin, zmax, self.zscale))
+        if xmax > self._image_dims[0]:
             xmax = self._image_dims[0]
-            screen_xmax = len(np.arange(xmin,xmax,self.xscale))
-        if ymax>self._image_dims[1]:
+            screen_xmax = len(np.arange(xmin, xmax, self.xscale))
+        if ymax > self._image_dims[1]:
             ymax = self._image_dims[1]
-            screen_ymax = len(np.arange(ymin,ymax,self.yscale))
-        if zmax>self._image_dims[2]:
+            screen_ymax = len(np.arange(ymin, ymax, self.yscale))
+        if zmax > self._image_dims[2]:
             zmax = self._image_dims[2]
-            screen_zmax = len(np.arange(zmin,zmax,self.zscale))
+            screen_zmax = len(np.arange(zmin, zmax, self.zscale))
 
-        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[xmin:xmax:self.xscale, ymin:ymax:self.yscale, zmin:zmax:self.zscale]
+        screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[
+                                                                                            xmin:xmax:self.xscale,
+                                                                                            ymin:ymax:self.yscale,
+                                                                                            zmin:zmax:self.zscale]
 
         # update rectangle limits from input image coordinates
-        self.rectangle = Rectangle(xmin,xmax,
-                                   ymin,ymax,
-                                   zmin,zmax)
+        self.rectangle = Rectangle(xmin, xmax,
+                                   ymin, ymax,
+                                   zmin, zmax)
 
         return screen
 
-    def get_plane(self,z=0):
+    def get_plane(self, z=0):
         return self._image.data[:, :, z]
 
-
     def _calc_reward(self, current_loc, next_loc):
-        ''' Calculate the new reward based on the euclidean distance to the target location
-        '''
+        """ Calculate the new reward based on the euclidean distance to the target location
+        """
         curr_dist = self.calcDistance(current_loc, self._target_loc,
                                       self.spacing)
         next_dist = self.calcDistance(next_loc, self._target_loc,
@@ -532,23 +535,23 @@ class MedicalPlayer(gym.Env):
         counter = Counter(self._loc_history)
         freq = counter.most_common()
 
-        if freq[0][0] == (0,0,0):
-            if (freq[1][1]>3):
+        if freq[0][0] == (0, 0, 0):
+            if (freq[1][1] > 3):
                 return True
             else:
                 return False
-        elif (freq[0][1]>3):
+        elif (freq[0][1] > 3):
             return True
 
     def get_action_meanings(self):
         ''' return array of integers for actions'''
         ACTION_MEANING = {
-            1 : "UP",       # MOVE Z+
-            2 : "FORWARD",  # MOVE Y+
-            3 : "RIGHT",    # MOVE X+
-            4 : "LEFT",     # MOVE X-
-            5 : "BACKWARD", # MOVE Y-
-            6 : "DOWN",     # MOVE Z-
+            1: "UP",  # MOVE Z+
+            2: "FORWARD",  # MOVE Y+
+            3: "RIGHT",  # MOVE X+
+            4: "LEFT",  # MOVE X-
+            5: "BACKWARD",  # MOVE Y-
+            6: "DOWN",  # MOVE Z-
         }
         return [ACTION_MEANING[i] for i in self.actions]
 
@@ -574,13 +577,13 @@ class MedicalPlayer(gym.Env):
         current_point = self._location
         target_point = self._target_loc
         # get image and convert it to pyglet
-        plane = self.get_plane(current_point[2])# z-plane
+        plane = self.get_plane(current_point[2])  # z-plane
         # plane = np.squeeze(self._current_state()[:,:,13])
-        img = cv2.cvtColor(plane,cv2.COLOR_GRAY2RGB) # congvert to rgb
+        img = cv2.cvtColor(plane, cv2.COLOR_GRAY2RGB)  # congvert to rgb
         # rescale image
         # INTER_NEAREST, INTER_LINEAR, INTER_AREA, INTER_CUBIC, INTER_LANCZOS4
-        scale_x=1
-        scale_y=1
+        scale_x = 1
+        scale_y = 1
         #
         # img = cv2.resize(img,
         #                  (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
@@ -597,34 +600,34 @@ class MedicalPlayer(gym.Env):
         self.viewer.draw_image(img)
         # draw a transparent circle around target point with variable radius
         # based on the difference z-direction
-        diff_z = scale_x * abs(current_point[2]-target_point[2])
-        self.viewer.draw_circle(radius = diff_z,
-                                pos_x = scale_x*target_point[0],
-                                pos_y = scale_y*target_point[1],
-                                color = (1.0,0.0,0.0,0.2))
+        diff_z = scale_x * abs(current_point[2] - target_point[2])
+        self.viewer.draw_circle(radius=diff_z,
+                                pos_x=scale_x * target_point[0],
+                                pos_y=scale_y * target_point[1],
+                                color=(1.0, 0.0, 0.0, 0.2))
         # draw target point
-        self.viewer.draw_circle(radius = scale_x * 1,
-                                pos_x = scale_x*target_point[0],
-                                pos_y = scale_y*target_point[1],
-                                color = (1.0,0.0,0.0,1.0))
+        self.viewer.draw_circle(radius=scale_x * 1,
+                                pos_x=scale_x * target_point[0],
+                                pos_y=scale_y * target_point[1],
+                                color=(1.0, 0.0, 0.0, 1.0))
         # draw current point
-        self.viewer.draw_circle(radius = scale_x * 1,
-                                pos_x = scale_x * current_point[0],
-                                pos_y = scale_y * current_point[1],
-                                color = (0.0,0.0,1.0,1.0))
+        self.viewer.draw_circle(radius=scale_x * 1,
+                                pos_x=scale_x * current_point[0],
+                                pos_y=scale_y * current_point[1],
+                                color=(0.0, 0.0, 1.0, 1.0))
         # draw a box around the agent - what the network sees ROI
         self.viewer.draw_rect(self.rectangle.xmin, self.rectangle.ymin,
                               self.rectangle.xmax, self.rectangle.ymax)
-        self.viewer.display_text('Agent ', color = (204,204,0,255),
-                                 x = self.rectangle.xmin - 15,
-                                 y = self.rectangle.ymin)
+        self.viewer.display_text('Agent ', color=(204, 204, 0, 255),
+                                 x=self.rectangle.xmin - 15,
+                                 y=self.rectangle.ymin)
         # display info
-        color = (0,204,0,255) if self.reward>0 else (204,0,0,255)
-        text = 'Error ' + str(round(self.cur_dist,3)) + 'mm'
+        color = (0, 204, 0, 255) if self.reward > 0 else (204, 0, 0, 255)
+        text = 'Error ' + str(round(self.cur_dist, 3)) + 'mm'
         self.viewer.display_text(text, color=color, x=10, y=20)
         text = 'Spacing ' + str(self.xscale)
         self.viewer.display_text(text, color=color,
-                                 x=10, y=self._image_dims[1]-80)
+                                 x=10, y=self._image_dims[1] - 80)
 
         # render and wait (viz) time between frames
         self.viewer.render()
@@ -634,17 +637,17 @@ class MedicalPlayer(gym.Env):
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             data = image_data.get_data('RGB', image_data.width * 3)
             arr = np.array(bytearray(data)).astype('uint8')
-            arr = np.flip(np.reshape(arr,(image_data.height, image_data.width, -1)),0)
+            arr = np.flip(np.reshape(arr, (image_data.height, image_data.width, -1)), 0)
             im = Image.fromarray(arr)
             self.gif_buffer.append(im)
 
             if not self.terminal:
                 gifname = self.filename.split('.')[0] + '.gif'
-                self.viewer.saveGif(gifname,arr=self.gif_buffer,
+                self.viewer.saveGif(gifname, arr=self.gif_buffer,
                                     duration=self.viz)
         if self.saveVideo:
             dirname = 'tmp_video'
-            if (self.cnt <=1):
+            if (self.cnt <= 1):
                 if os.path.isdir(dirname):
                     logger.warn("""Log directory {} exists! Use 'd' to delete it. """.format(dirname))
                     act = input("select action: d (delete) / q (quit): ").lower().strip()
@@ -657,11 +660,11 @@ class MedicalPlayer(gym.Env):
             frame = dirname + '/' + '%04d' % self.cnt + '.png'
             pyglet.image.get_buffer_manager().get_color_buffer().save(frame)
             if self.terminal:
-                resolution = str(3*self.viewer.img_width) + 'x' + str(3*self.viewer.img_height)
-                save_cmd = ['ffmpeg','-f', 'image2', '-framerate', '30',
-                    '-pattern_type', 'sequence', '-start_number', '0', '-r',
-                    '6', '-i', dirname + '/%04d.png', '-s', resolution,
-                    '-vcodec', 'libx264', '-b:v', '2567k', self.filename+'.mp4']
+                resolution = str(3 * self.viewer.img_width) + 'x' + str(3 * self.viewer.img_height)
+                save_cmd = ['ffmpeg', '-f', 'image2', '-framerate', '30',
+                            '-pattern_type', 'sequence', '-start_number', '0', '-r',
+                            '6', '-i', dirname + '/%04d.png', '-s', resolution,
+                            '-vcodec', 'libx264', '-b:v', '2567k', self.filename + '.mp4']
                 subprocess.check_output(save_cmd)
                 shutil.rmtree(dirname, ignore_errors=True)
 
@@ -693,7 +696,7 @@ class FrameStack(gym.Wrapper):
     def __init__(self, env, k):
         """Buffer observations and stack across channels (last axis)."""
         gym.Wrapper.__init__(self, env)
-        self.k = k # history length
+        self.k = k  # history length
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
         self._base_dim = len(shp)
