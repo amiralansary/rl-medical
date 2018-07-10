@@ -114,6 +114,8 @@ class Model3D(ModelDesc):
         :param method: dqn or double (default is double)
         :param num_actions: number of actions
         :param gamma: discount factor
+
+        See http://tensorpack.readthedocs.io/tutorial/training-interface.html for Mode lDesc documentation.
         """
         self.gamma = gamma
         self.method = method
