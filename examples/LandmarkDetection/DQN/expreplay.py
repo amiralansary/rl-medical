@@ -312,3 +312,4 @@ class ExpReplay(DataFlow, Callback):
             self.trainer.monitors.put_scalar('n_success_ratio', 0)
         # reset stats
         self.player.reset_stat()
+
