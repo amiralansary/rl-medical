@@ -718,6 +718,7 @@ class MedicalPlayer(gym.Env):
 # ================================ FrameStack =================================
 # =============================================================================
 class FrameStack(gym.Wrapper):
+    """used when not training. wrapper for Medical Env"""
     def __init__(self, env, k):
         """Buffer observations and stack across channels (last axis)."""
         gym.Wrapper.__init__(self, env)
