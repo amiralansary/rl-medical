@@ -69,12 +69,13 @@ EVAL_EPISODE = 50
 
 def get_player(directory=None, files_list= None, viz=False,
                train=False, saveGif=False, saveVideo=False):
-    # atari max_num_frames = 30000
+    # in atari paper, max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
                         viz=viz, saveGif=saveGif, saveVideo=saveVideo,
                         train=train, files_list=files_list, max_num_frames=1500)
     if not train:
         # in training, history is taken care of in expreplay buffer
+        # otherwise, FrameStack modifies self.step to save observations into a queue
         env = FrameStack(env, FRAME_HISTORY)
     return env
 
