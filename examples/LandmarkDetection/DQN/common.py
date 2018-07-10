@@ -29,10 +29,13 @@ import traceback
 def play_one_episode(env, func, render=False):
     def predict(s):
         """
-        Map from observation to action, with 0.001 greedy.
+        Map from observation to action, WITHOUT 0.001 greedy.
         """
-        act = func(s[None, :, :, :])[0][0].argmax()
+        # pick action with best predicted Q-value
         q_values = func(s[None, :, :, :])[0][0]
+        act = q_values.argmax()
+
+        # eps greedy disabled
         # if random.random() < 0.001:
         #     spc = env.action_space
         #     act = spc.sample()
