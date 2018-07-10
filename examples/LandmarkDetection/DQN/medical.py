@@ -224,6 +224,7 @@ class MedicalPlayer(gym.Env):
         self.filename = os.path.basename(self.filepath)
 
         # multiscale (e.g. start with 3 -> 2 -> 1)
+        # scale can be thought of as sampling stride
         if self.multiscale:
             ## brain
             self.action_step = 9
@@ -474,11 +475,21 @@ class MedicalPlayer(gym.Env):
         self._qvalues_history[-1] = self._qvalues
 
     def _current_state(self):
+        """
+        crop image data around current location to update what network sees.
+        update rectangle
+
+        :return: new state
+        """
         # initialize screen with zeros - all background
         screen = np.zeros((self.screen_dims)).astype(self._image.data.dtype)
+
+        # screen uses coordinate system relative to origin (0, 0, 0)
         screen_xmin, screen_ymin, screen_zmin = 0, 0, 0
         screen_xmax, screen_ymax, screen_zmax = self.screen_dims
-        # extract boundary locations
+
+        # extract boundary locations using coordinate system relative to "global" image
+        # width, height, depth in terms of screen coord system
         if self.xscale % 2:
             xmin = self._location[0] - int(self.width * self.xscale / 2) - 1
             xmax = self._location[0] + int(self.width * self.xscale / 2)
@@ -514,12 +525,16 @@ class MedicalPlayer(gym.Env):
             zmax = self._image_dims[2]
             screen_zmax = len(np.arange(zmin, zmax, self.zscale))
 
+        # crop image data to update what network sees
+        # image coordinate system becomes screen coordinates
+        # scale can be thought of as a stride
         screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[
                                                                                             xmin:xmax:self.xscale,
                                                                                             ymin:ymax:self.yscale,
                                                                                             zmin:zmax:self.zscale]
 
         # update rectangle limits from input image coordinates
+        # this is what the network sees
         self.rectangle = Rectangle(xmin, xmax,
                                    ymin, ymax,
                                    zmin, zmax)
@@ -530,7 +545,7 @@ class MedicalPlayer(gym.Env):
         return self._image.data[:, :, z]
 
     def _calc_reward(self, current_loc, next_loc):
-        """ Calculate the new reward based on the euclidean distance to the target location
+        """ Calculate the new reward based on the decrease in euclidean distance to the target location
         """
         curr_dist = self.calcDistance(current_loc, self._target_loc,
                                       self.spacing)
