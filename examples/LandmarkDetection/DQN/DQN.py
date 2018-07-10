@@ -74,7 +74,8 @@ def get_player(directory=None, files_list= None, viz=False,
                         viz=viz, saveGif=saveGif, saveVideo=saveVideo,
                         train=train, files_list=files_list, max_num_frames=1500)
     if not train:
-        # in training, history is taken care of in expreplay buffer
+        # in training, env will be decorated by ExpReplay, and history
+        # is taken care of in expreplay buffer
         # otherwise, FrameStack modifies self.step to save observations into a queue
         env = FrameStack(env, FRAME_HISTORY)
     return env
