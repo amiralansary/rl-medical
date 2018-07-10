@@ -92,12 +92,12 @@ class ReplayMemory(object):
                 state = copy.deepcopy(state)
                 state[:k + 1].fill(0)
                 break
-        # tranpose state
+        # transpose state
         if state.ndim == 4:  # 3d state
             state = state.transpose(1, 2, 3, 0)
         else:  # 2d states
             state = state.transpose(1, 2, 0)
-        return (state, reward[-2], action[-2], isOver[-2])
+        return state, reward[-2], action[-2], isOver[-2]
 
     def _slice(self, arr, start, end):
         s1 = arr[start:]
