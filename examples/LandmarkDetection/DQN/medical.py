@@ -104,6 +104,7 @@ class MedicalPlayer(gym.Env):
 
         super(MedicalPlayer, self).__init__()
 
+        # inits stat counters
         self.reset_stat()
 
         # counter to limit number of steps per episodes
@@ -123,6 +124,7 @@ class MedicalPlayer(gym.Env):
         # multi-scale agent
         self.multiscale = multiscale
 
+        # init env dimensions
         if self.dims == 2:
             self.width, self.height = screen_dims
         else:
@@ -160,7 +162,7 @@ class MedicalPlayer(gym.Env):
         # prepare file sampler
         self.filepath = None
         self.sampled_files = self.files.sample_circular()
-        # restart episode
+        # reset buffer, terminal, counters, and init new_random_game
         self._restart_episode()
 
     def _reset(self):
@@ -177,10 +179,18 @@ class MedicalPlayer(gym.Env):
         self.num_games.feed(1)
         self.current_episode_score.reset()  # reset the stat counter
         self._loc_history = [(0,) * self.dims] * self._history_length
+        # list of q-value lists
         self._qvalues_history = [(0,) * self.actions] * self._history_length
         self.new_random_game()
 
     def new_random_game(self):
+        """
+        load image,
+        set dimensions,
+        randomize start point,
+        init _screen, qvals,
+        calc distance to goal
+        """
         self.terminal = False
         self.viewer = None
         # ######################################################################
@@ -235,7 +245,7 @@ class MedicalPlayer(gym.Env):
 
         #######################################################################
         ## select random starting point
-        # for random point selection - skip border thickness
+        # add padding to avoid start right on the border of the image
         if self.train:
             skip_thickness = (int(self._image_dims[0] / 5),
                               int(self._image_dims[1] / 5),
