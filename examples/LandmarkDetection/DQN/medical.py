@@ -262,7 +262,7 @@ class MedicalPlayer(gym.Env):
                                           self.spacing)
 
     def calcDistance(self, points1, points2, spacing=(1, 1, 1)):
-        ''' calculate the distance between two points in mm'''
+        """ calculate the distance between two points in mm"""
         spacing = np.array(spacing)
         points1 = spacing * np.array(points1)
         points2 = spacing * np.array(points2)
@@ -271,7 +271,7 @@ class MedicalPlayer(gym.Env):
     def step(self, act, qvalues):
         """The environment's step function returns exactly what we need.
         Args:
-          action:
+          act:
         Returns:
           observation (object):
             an environment-specific object representing your observation of
@@ -322,34 +322,34 @@ class MedicalPlayer(gym.Env):
             next_location = (round(current_loc[0] + self.action_step),
                              current_loc[1],
                              current_loc[2])
-            if (next_location[0] >= self._image_dims[0]):
+            if next_location[0] >= self._image_dims[0]:
                 # print(' trying to go out the image X+ ',)
                 next_location = current_loc
                 go_out = True
         # LEFT X- -----------------------------------------------------------
-        if (act == 3):
+        if act == 3:
             next_location = (round(current_loc[0] - self.action_step),
                              current_loc[1],
                              current_loc[2])
-            if (next_location[0] <= 0):
+            if next_location[0] <= 0:
                 # print(' trying to go out the image X- ',)
                 next_location = current_loc
                 go_out = True
         # BACKWARD Y- ---------------------------------------------------------
-        if (act == 4):
+        if act == 4:
             next_location = (current_loc[0],
                              round(current_loc[1] - self.action_step),
                              current_loc[2])
-            if (next_location[1] <= 0):
+            if next_location[1] <= 0:
                 # print(' trying to go out the image Y- ',)
                 next_location = current_loc
                 go_out = True
         # DOWN Z- -----------------------------------------------------------
-        if (act == 5):
+        if act == 5:
             next_location = (current_loc[0],
                              current_loc[1],
                              round(current_loc[2] - self.action_step))
-            if (next_location[2] <= 0):
+            if next_location[2] <= 0:
                 # print(' trying to go out the image Z- ',)
                 next_location = current_loc
                 go_out = True
@@ -530,8 +530,8 @@ class MedicalPlayer(gym.Env):
 
     @property
     def _oscillate(self):
-        ''' Return True if the agent is stuck and oscillating
-        '''
+        """ Return True if the agent is stuck and oscillating
+        """
         counter = Counter(self._loc_history)
         freq = counter.most_common()
 
@@ -544,7 +544,7 @@ class MedicalPlayer(gym.Env):
             return True
 
     def get_action_meanings(self):
-        ''' return array of integers for actions'''
+        """ return array of integers for actions"""
         ACTION_MEANING = {
             1: "UP",  # MOVE Z+
             2: "FORWARD",  # MOVE Y+
@@ -647,7 +647,7 @@ class MedicalPlayer(gym.Env):
                                     duration=self.viz)
         if self.saveVideo:
             dirname = 'tmp_video'
-            if (self.cnt <= 1):
+            if self.cnt <= 1:
                 if os.path.isdir(dirname):
                     logger.warn("""Log directory {} exists! Use 'd' to delete it. """.format(dirname))
                     act = input("select action: d (delete) / q (quit): ").lower().strip()
