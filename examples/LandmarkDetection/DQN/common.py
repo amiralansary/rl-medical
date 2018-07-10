@@ -56,6 +56,8 @@ def play_one_episode(env, func, render=False):
 ###############################################################################
 
 def play_n_episodes(player, predfunc, nr, render=False):
+    """wraps play_one_episode, playing a single episode at a time and logs results
+    used when playing demos."""
     logger.info("Start Playing ... ")
     for k in range(nr):
         # if k != 0:
@@ -75,6 +77,8 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
     """
     Args:
         predictors ([PredictorBase])
+
+    Runs episodes in parallel, returning statistics about the model performance.
     """
 
     class Worker(StoppableThread, ShareSessionThread):
@@ -108,6 +112,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
 
     threads = [Worker(f, q, q_dist) for f in predictors]
 
+    # start all workers
     for k in threads:
         k.start()
         time.sleep(0.1)  # avoid simulator bugs
@@ -144,6 +149,8 @@ def eval_model_multithread(pred, nr_eval, get_player_fn):
     """
     Args:
         pred (OfflinePredictor): state -> Qvalue
+
+    Evaluate pretrained models, or checkpoints of models during training
     """
     NR_PROC = min(multiprocessing.cpu_count() // 2, 8)
     with pred.sess.as_default():
@@ -171,6 +178,7 @@ class Evaluator(Callback):
             self.input_names, self.output_names)] * NR_PROC
 
     def _trigger(self):
+        """triggered by Trainer"""
         t = time.time()
         mean_score, max_score, mean_dist, max_dist = eval_with_funcs(
             self.pred_funcs, self.eval_episode, self.get_player_fn,
