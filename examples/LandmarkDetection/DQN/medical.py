@@ -679,24 +679,24 @@ class MedicalPlayer(gym.Env):
                 shutil.rmtree(dirname, ignore_errors=True)
 
 
-class DiscreteActionSpace(object):
-
-    def __init__(self, num):
-        super(DiscreteActionSpace, self).__init__()
-        self.num = num
-        self.rng = get_rng(self)
-
-    def sample(self):
-        return self.rng.randint(self.num)
-
-    def num_actions(self):
-        return self.num
-
-    def __repr__(self):
-        return "DiscreteActionSpace({})".format(self.num)
-
-    def __str__(self):
-        return "DiscreteActionSpace({})".format(self.num)
+# class DiscreteActionSpace(object):
+#
+#     def __init__(self, num):
+#         super(DiscreteActionSpace, self).__init__()
+#         self.num = num
+#         self.rng = get_rng(self)
+#
+#     def sample(self):
+#         return self.rng.randint(self.num)
+#
+#     def num_actions(self):
+#         return self.num
+#
+#     def __repr__(self):
+#         return "DiscreteActionSpace({})".format(self.num)
+#
+#     def __str__(self):
+#         return "DiscreteActionSpace({})".format(self.num)
 
 
 # =============================================================================
