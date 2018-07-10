@@ -23,6 +23,7 @@ from tensorpack.utils.concurrency import (StoppableThread, ShareSessionThread)
 
 import traceback
 
+
 ###############################################################################
 
 def play_one_episode(env, func, render=False):
@@ -48,6 +49,7 @@ def play_one_episode(env, func, render=False):
         if isOver:
             return sum_r, info['filename'], info['distError'], q_values
 
+
 ###############################################################################
 
 def play_n_episodes(player, predfunc, nr, render=False):
@@ -56,9 +58,12 @@ def play_n_episodes(player, predfunc, nr, render=False):
         # if k != 0:
         #     player.restart_episode()
         score, filename, ditance_error, q_values = play_one_episode(player,
-                                                          predfunc,
-                                                          render=render)
-        logger.info("{}/{} - {} - score {} - distError {} - q_values {}".format(k+1, nr, filename, score, ditance_error, q_values))
+                                                                    predfunc,
+                                                                    render=render)
+        logger.info(
+            "{}/{} - {} - score {} - distError {} - q_values {}".format(k + 1, nr, filename, score, ditance_error,
+                                                                        q_values))
+
 
 ###############################################################################
 
@@ -68,6 +73,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
     Args:
         predictors ([PredictorBase])
     """
+
     class Worker(StoppableThread, ShareSessionThread):
         def __init__(self, func, queue, distErrorQueue):
             super(Worker, self).__init__()
@@ -128,6 +134,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
         return (stat.average, stat.max, dist_stat.average, dist_stat.max)
     return (0, 0, 0, 0)
 
+
 ###############################################################################
 
 def eval_model_multithread(pred, nr_eval, get_player_fn):
@@ -138,14 +145,16 @@ def eval_model_multithread(pred, nr_eval, get_player_fn):
     NR_PROC = min(multiprocessing.cpu_count() // 2, 8)
     with pred.sess.as_default():
         mean_score, max_score, mean_dist, max_dist = eval_with_funcs([pred] * NR_PROC, nr_eval, get_player_fn)
-    logger.info("Average Score: {}; Max Score: {}; Average Distance: {}; Max Distance: {}".format(mean_score, max_score, mean_dist, max_dist))
+    logger.info("Average Score: {}; Max Score: {}; Average Distance: {}; Max Distance: {}".format(mean_score, max_score,
+                                                                                                  mean_dist, max_dist))
+
 
 ###############################################################################
 
 class Evaluator(Callback):
 
     def __init__(self, nr_eval, input_names, output_names,
-                 directory, get_player_fn, files_list = None):
+                 directory, get_player_fn, files_list=None):
         self.directory = directory
         self.files_list = files_list
         self.eval_episode = nr_eval
@@ -161,8 +170,8 @@ class Evaluator(Callback):
     def _trigger(self):
         t = time.time()
         mean_score, max_score, mean_dist, max_dist = eval_with_funcs(
-                self.pred_funcs, self.eval_episode, self.get_player_fn,
-                self.directory, self.files_list)
+            self.pred_funcs, self.eval_episode, self.get_player_fn,
+            self.directory, self.files_list)
         t = time.time() - t
         if t > 10 * 60:  # eval takes too long
             self.eval_episode = int(self.eval_episode * 0.94)
@@ -170,6 +179,5 @@ class Evaluator(Callback):
         self.trainer.monitors.put_scalar('max_score', max_score)
         self.trainer.monitors.put_scalar('mean_distance', mean_dist)
         self.trainer.monitors.put_scalar('max_distance', max_dist)
-
 
 ###############################################################################
