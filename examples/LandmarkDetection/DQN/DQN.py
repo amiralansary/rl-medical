@@ -210,7 +210,7 @@ if __name__ == '__main__':
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     METHOD = args.algo
-    # set num_actions
+    # load files into env to set num_actions, num_validation_files
     init_player = MedicalPlayer(directory=data_dir,
                                 files_list=test_list,
                                 screen_dims=IMAGE_SIZE)
@@ -224,17 +224,19 @@ if __name__ == '__main__':
             session_init=get_model_loader(args.load),
             input_names=['state'],
             output_names=['Qvalue']))
+        # demo pretrained model one episode at a time
         if args.task == 'play':
             play_n_episodes(get_player(directory=data_dir,
                                        files_list=test_list, viz=0.01,
                                        saveGif=args.saveGif,
                                        saveVideo=args.saveVideo),
                             pred, num_validation_files)
+        # run episodes in parallel and evaluate pretrained model
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
-    else:
+    else:  # train a model
         logger.set_logger_dir(logger_dir)
         config = get_config()
-        if args.load:
+        if args.load:  # resume training from a saved checkpoint
             config.session_init = get_model_loader(args.load)
         launch_train_with_config(config, SimpleTrainer())
