@@ -195,7 +195,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.')
     parser.add_argument('--load', help='load model')
-    parser.add_argument('--task', help='task to perform',
+    parser.add_argument('--task', help='task to perform. Must load a pretrained model if task is "play" or "eval"',
                         choices=['play', 'eval', 'train'], default='train')
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling','DuelingDouble'],
