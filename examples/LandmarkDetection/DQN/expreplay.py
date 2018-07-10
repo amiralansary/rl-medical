@@ -309,26 +309,4 @@ class ExpReplay(DataFlow, Callback):
             self.trainer.monitors.put_scalar('n_success_ratio',0)
         # reset stats
         self.player.reset_stat()
-
-
-if __name__ == '__main__':
-    from .atari import AtariPlayer
-    import sys
-
-    def predictor(x):
-        np.array([1, 1, 1, 1])
-    player = AtariPlayer(sys.argv[1], viz=0, frame_skip=10, height_range=(36, 204))
-    E = ExpReplay(predictor,
-                  player=player,
-                  num_actions=player.action_space.n,
-                  populate_size=1001,
-                  history_len=4)
-    E._init_memory()
-
-    for k in E.get_data():
-        import IPython as IP
-        IP.embed(config=IP.terminal.ipapp.load_default_config())
-        pass
-        # import IPython;
-        # IPython.embed(config=IPython.terminal.ipapp.load_default_config())
-        # break
+        
