@@ -87,11 +87,15 @@ class Model(DQNModel):
         super(Model, self).__init__(IMAGE_SIZE, FRAME_HISTORY, METHOD, NUM_ACTIONS, GAMMA)
 
     def _get_DQN_prediction(self, image):
-        """ image: [0,255]"""
+        """ image: [0,255]
+
+        :returns predicted Q values"""
+        # normalize image values to [0, 1]
         image = image / 255.0
 
         with argscope(Conv3D, nl=PReLU.symbolic_function, use_bias=True), \
                 argscope(LeakyReLU, alpha=0.01):
+            # core layers of the network
             conv = (LinearWrap(image)
                  .Conv3D('conv0', out_channel=32,
                          kernel_shape=[5,5,5], stride=[1,1,1])
@@ -114,7 +118,7 @@ class Model(DQNModel):
                  .FullyConnected('fc2', 128).tf.nn.leaky_relu(alpha=0.01)())
             Q = FullyConnected('fct', lq, self.num_actions, nl=tf.identity)
         else:
-            # Dueling DQN
+            # Dueling DQN or Double Dueling
             # state value function
             lv = (conv
                  .FullyConnected('fc0V', 512).tf.nn.leaky_relu(alpha=0.01)
@@ -136,6 +140,7 @@ class Model(DQNModel):
 ###############################################################################
 
 def get_config():
+    """This is only used during training."""
     expreplay = ExpReplay(
         predictor_io_names=(['state'], ['Qvalue']),
         player=get_player(directory=data_dir, train=True,
