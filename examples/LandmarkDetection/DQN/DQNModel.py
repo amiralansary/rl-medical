@@ -134,7 +134,7 @@ class Model3D(ModelDesc):
 
     @abc.abstractmethod
     def _get_DQN_prediction(self, image):
-        """this method is overridden in DQN.py"""
+        """this method is overridden in DQN.py, where it will return a list of predicted Q-values"""
         pass
 
     # decorate the function
