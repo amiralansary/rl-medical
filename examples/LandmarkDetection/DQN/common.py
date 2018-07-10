@@ -29,7 +29,8 @@ import traceback
 def play_one_episode(env, func, render=False):
     def predict(s):
         """
-        Map from observation to action, WITHOUT 0.001 greedy.
+        Run a full episode, mapping observation to action, WITHOUT 0.001 greedy.
+    :returns sum of rewards
         """
         # pick action with best predicted Q-value
         q_values = func(s[None, :, :, :])[0][0]
@@ -119,6 +120,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
     stat = StatCounter()
     dist_stat = StatCounter()
 
+    # show progress bar w/ tqdm
     for _ in tqdm(range(nr_eval), **get_tqdm_kwargs()):
         r = q.get()
         stat.feed(r)
@@ -186,6 +188,8 @@ class Evaluator(Callback):
         t = time.time() - t
         if t > 10 * 60:  # eval takes too long
             self.eval_episode = int(self.eval_episode * 0.94)
+
+        # log scores
         self.trainer.monitors.put_scalar('mean_score', mean_score)
         self.trainer.monitors.put_scalar('max_score', max_score)
         self.trainer.monitors.put_scalar('mean_distance', mean_dist)
