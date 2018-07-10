@@ -105,7 +105,6 @@ from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 #         return tf.group(*ops, name='update_target_network')
 
 
-
 class Model3D(ModelDesc):
     def __init__(self, image_shape, channel, method, num_actions, gamma):
         """
@@ -135,6 +134,7 @@ class Model3D(ModelDesc):
 
     @abc.abstractmethod
     def _get_DQN_prediction(self, image):
+        """this method is overridden in DQN.py"""
         pass
 
     # decorate the function
@@ -160,15 +160,15 @@ class Model3D(ModelDesc):
         summary.add_moving_summary(max_pred_reward)
 
         with tf.variable_scope('target'):
-            targetQ_predict_value = self.get_DQN_prediction(next_state) # NxA
+            targetQ_predict_value = self.get_DQN_prediction(next_state)  # NxA
 
-        if 'Double' not in self.method :
+        if 'Double' not in self.method:
             # DQN or Dueling
-            best_v = tf.reduce_max(targetQ_predict_value, 1)    # N,
+            best_v = tf.reduce_max(targetQ_predict_value, 1)  # N,
         else:
             # Double-DQN or DuelingDouble
             next_predict_value = self.get_DQN_prediction(next_state)
-            self.greedy_choice = tf.argmax(next_predict_value, 1)   # N,
+            self.greedy_choice = tf.argmax(next_predict_value, 1)  # N,
             predict_onehot = tf.one_hot(self.greedy_choice, self.num_actions, 1.0, 0.0)
             best_v = tf.reduce_sum(targetQ_predict_value * predict_onehot, 1)
 
@@ -176,17 +176,18 @@ class Model3D(ModelDesc):
         self.cost = tf.losses.huber_loss(target, pred_action_value,
                                          reduction=tf.losses.Reduction.MEAN)
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
-                                  ('fc.*/W', ['histogram', 'rms']))   # monitor all W
+                                  ('fc.*/W', ['histogram', 'rms']))  # monitor all W
         summary.add_moving_summary(self.cost)
 
     def _get_optimizer(self):
-        lr = tf.get_variable('learning_rate',initializer=1e-3, trainable=False)
+        lr = tf.get_variable('learning_rate', initializer=1e-3, trainable=False)
         opt = tf.train.AdamOptimizer(lr, epsilon=1e-3)
         return optimizer.apply_grad_processors(
             opt, [gradproc.GlobalNormClip(10), gradproc.SummaryGradient()])
 
     @staticmethod
     def update_target_param():
+        """periodically triggered by trainer"""
         vars = tf.global_variables()
         ops = []
         G = tf.get_default_graph()
