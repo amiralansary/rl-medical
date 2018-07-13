@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: medical.py
+# File: brain_env.py
 # Author: Amir Alansary <amiralansary@gmail.com>
 
 import csv
