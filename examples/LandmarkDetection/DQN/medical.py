@@ -731,7 +731,7 @@ class FrameStack(gym.Wrapper):
 
     def _reset(self):
         """Clear buffer and re-fill by duplicating the first observation."""
-        ob = self.env._reset()
+        ob = self.env.reset()
         for _ in range(self.k - 1):
             self.frames.append(np.zeros_like(ob))
         self.frames.append(ob)
