@@ -61,7 +61,7 @@ class MedicalPlayer(gym.Env):
     Each time-step, the agent chooses an action, and the environment returns
     an observation and a reward."""
 
-    def __init__(self, directory=None, viz=False, train=False, files_list=None,
+    def __init__(self, directory=None, viz=False, task=False, files_list=None,
                  screen_dims=(27,27,27), history_length=20, multiscale=True,
                  max_num_frames=0, saveGif=False, saveVideo=False):
         """
@@ -77,9 +77,6 @@ class MedicalPlayer(gym.Env):
             episode (useful for training)
         :max_num_frames: maximum numbe0r of frames per episode.
         """
-        # python DQN_midl2018.py --task play --gpu 0 --algo DuelingDouble --load train_log/DuelDoubleDQN_multiscale_brain_mri_point_ac_ROI_45_45_45_midl2018/model-350000
-
-
         # ######################################################################
         # ## generate evaluation results from 19 different points
         # ## save results in csv file
@@ -115,7 +112,7 @@ class MedicalPlayer(gym.Env):
         self.saveGif = saveGif
         self.saveVideo = saveVideo
         # training flag
-        self.train = train
+        self.task = task
         # image dimension (2D/3D)
         self.screen_dims = screen_dims
         self.dims = len(self.screen_dims)
@@ -145,7 +142,8 @@ class MedicalPlayer(gym.Env):
         self.action_space = spaces.Discrete(6) # change number actions here
         self.actions = self.action_space.n
         self.observation_space = spaces.Box(low=0, high=255,
-                                            shape=self.screen_dims)
+                                            shape=self.screen_dims,
+                                            dtype=np.uint8)
         # history buffer for storing last locations to check oscilations
         self._history_length = history_length
         self._loc_history = [(0,) * self.dims] * self._history_length
@@ -153,9 +151,16 @@ class MedicalPlayer(gym.Env):
         # initialize rectangle limits from input image coordinates
         self.rectangle = Rectangle(0,0,0,0,0,0)
         # add your data loader here
-        # self.files = filesListBrainMRLandmark(directory,files_list)
-        self.files = filesListFetalUSLandmark(directory,files_list)
+        if self.task== 'play':
+            self.files = filesListBrainMRLandmark(directory,files_list,
+                                                  returnLandmarks=False)
+        else:
+            self.files = filesListBrainMRLandmark(directory,files_list,
+                                                  returnLandmarks=True)
+
+        # self.files = filesListFetalUSLandmark(directory,files_list)
         # self.files = filesListCardioMRLandmark(directory,files_list)
+
         # prepare file sampler
         self.filepath = None
         self.sampled_files = self.files.sample_circular()
@@ -172,6 +177,7 @@ class MedicalPlayer(gym.Env):
         restart current episoide
         """
         self.terminal = False
+        self.reward = 0
         self.cnt = 0 # counter to limit number of steps per episodes
         self.num_games.feed(1)
         self.current_episode_score.reset()  # reset the stat counter
@@ -235,7 +241,7 @@ class MedicalPlayer(gym.Env):
         #######################################################################
         ## select random starting point
         # for random point selection - skip border thickness
-        if self.train:
+        if (self.task == 'train'):
             skip_thickness = ((int)(self._image_dims[0]/5),
                               (int)(self._image_dims[1]/5),
                               (int)(self._image_dims[2]/5))
@@ -256,9 +262,13 @@ class MedicalPlayer(gym.Env):
         self._start_location = (x,y,z)
         self._qvalues = [0,] * self.actions
         self._screen = self._current_state()
-        self.cur_dist = self.calcDistance(self._location,
-                                          self._target_loc,
-                                          self.spacing)
+
+        if self.task == 'play':
+            self.cur_dist = 0
+        else:
+            self.cur_dist = self.calcDistance(self._location,
+                                              self._target_loc,
+                                              self.spacing)
 
     def calcDistance(self, points1, points2, spacing=(1,1,1)):
          ''' calculate the distance between two points in mm'''
@@ -356,16 +366,17 @@ class MedicalPlayer(gym.Env):
         # ---------------------------------------------------------------------
         # ---------------------------------------------------------------------
         # punish -1 reward if the agent tries to go out
-        if go_out:
-            self.reward = -1
-        else:
-            self.reward = self._calc_reward(current_loc, next_location)
+        if (self.task!='play'):
+            if go_out:
+                self.reward = -1
+            else:
+                self.reward = self._calc_reward(current_loc, next_location)
         # update screen, reward ,location, terminal
         self._location = next_location
         self._screen = self._current_state()
 
         # terminate if the distance is less than 1 during trainig
-        if self.train:
+        if (self.task == 'train'):
             if self.cur_dist<=1:
                 self.terminal = True
                 self.num_success.feed(1)
@@ -375,18 +386,21 @@ class MedicalPlayer(gym.Env):
         if self.cnt >= self.max_num_frames: self.terminal = True
 
         # update history buffer with new location and qvalues
-        self.cur_dist = self.calcDistance(self._location,
-                                          self._target_loc,
-                                          self.spacing)
+        if (self.task != 'play'):
+            self.cur_dist = self.calcDistance(self._location,
+                                              self._target_loc,
+                                              self.spacing)
         self._update_history()
 
         # check if agent oscillates
         if self._oscillate:
             self._location = self.getBestLocation()
             self._screen = self._current_state()
-            self.cur_dist = self.calcDistance(self._location,
-                                              self._target_loc,
-                                              self.spacing)
+
+            if (self.task != 'play'):
+                self.cur_dist = self.calcDistance(self._location,
+                                                  self._target_loc,
+                                                  self.spacing)
             # multi-scale steps
             if self.multiscale:
                 if self.xscale > 1:
@@ -408,6 +422,7 @@ class MedicalPlayer(gym.Env):
             if self.viz:
                 if isinstance(self.viz, float):
                     self.display()
+
 
         distance_error = self.cur_dist
         self.current_episode_score.feed(self.reward)
@@ -595,18 +610,6 @@ class MedicalPlayer(gym.Env):
             self.gif_buffer = []
         # display image
         self.viewer.draw_image(img)
-        # draw a transparent circle around target point with variable radius
-        # based on the difference z-direction
-        diff_z = scale_x * abs(current_point[2]-target_point[2])
-        self.viewer.draw_circle(radius = diff_z,
-                                pos_x = scale_x*target_point[0],
-                                pos_y = scale_y*target_point[1],
-                                color = (1.0,0.0,0.0,0.2))
-        # draw target point
-        self.viewer.draw_circle(radius = scale_x * 1,
-                                pos_x = scale_x*target_point[0],
-                                pos_y = scale_y*target_point[1],
-                                color = (1.0,0.0,0.0,1.0))
         # draw current point
         self.viewer.draw_circle(radius = scale_x * 1,
                                 pos_x = scale_x * current_point[0],
@@ -619,12 +622,31 @@ class MedicalPlayer(gym.Env):
                                  x = self.rectangle.xmin - 15,
                                  y = self.rectangle.ymin)
         # display info
-        color = (0,204,0,255) if self.reward>0 else (204,0,0,255)
-        text = 'Error ' + str(round(self.cur_dist,3)) + 'mm'
-        self.viewer.display_text(text, color=color, x=10, y=20)
         text = 'Spacing ' + str(self.xscale)
-        self.viewer.display_text(text, color=color,
+        self.viewer.display_text(text, color = (204,204,0,255),
                                  x=10, y=self._image_dims[1]-80)
+
+        # ---------------------------------------------------------------------
+
+        if (self.task != 'play'):
+            # draw a transparent circle around target point with variable radius
+            # based on the difference z-direction
+            diff_z = scale_x * abs(current_point[2]-target_point[2])
+            self.viewer.draw_circle(radius = diff_z,
+                                    pos_x = scale_x*target_point[0],
+                                    pos_y = scale_y*target_point[1],
+                                    color = (1.0,0.0,0.0,0.2))
+            # draw target point
+            self.viewer.draw_circle(radius = scale_x * 1,
+                                    pos_x = scale_x*target_point[0],
+                                    pos_y = scale_y*target_point[1],
+                                    color = (1.0,0.0,0.0,1.0))
+            # display info
+            color = (0,204,0,255) if self.reward>0 else (204,0,0,255)
+            text = 'Error ' + str(round(self.cur_dist,3)) + 'mm'
+            self.viewer.display_text(text, color=color, x=10, y=20)
+
+        # ---------------------------------------------------------------------
 
         # render and wait (viz) time between frames
         self.viewer.render()
@@ -698,9 +720,10 @@ class FrameStack(gym.Wrapper):
         shp = env.observation_space.shape
         self._base_dim = len(shp)
         new_shape = shp + (k,)
-        self.observation_space = spaces.Box(low=0, high=255, shape=new_shape)
+        self.observation_space = spaces.Box(low=0, high=255, shape=new_shape,
+                                            dtype=np.uint8)
 
-    def _reset(self):
+    def reset(self):
         """Clear buffer and re-fill by duplicating the first observation."""
         ob = self.env._reset()
         for _ in range(self.k - 1):

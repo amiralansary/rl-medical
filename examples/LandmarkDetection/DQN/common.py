@@ -130,14 +130,16 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
 
 ###############################################################################
 
-def eval_model_multithread(pred, nr_eval, get_player_fn):
+def eval_model_multithread(pred, nr_eval, get_player_fn, directory, files_list):
     """
     Args:
         pred (OfflinePredictor): state -> Qvalue
     """
     NR_PROC = min(multiprocessing.cpu_count() // 2, 8)
     with pred.sess.as_default():
-        mean_score, max_score, mean_dist, max_dist = eval_with_funcs([pred] * NR_PROC, nr_eval, get_player_fn)
+        mean_score, max_score, mean_dist, max_dist = eval_with_funcs(
+            [pred] * NR_PROC, nr_eval, get_player_fn,
+            directory, files_list)
     logger.info("Average Score: {}; Max Score: {}; Average Distance: {}; Max Distance: {}".format(mean_score, max_score, mean_dist, max_dist))
 
 ###############################################################################
