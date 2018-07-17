@@ -510,13 +510,13 @@ class MedicalPlayer(gym.Env):
             screen_zmin = screen_zmax - len(np.arange(zmin,zmax,self.zscale))
         if xmax>self._image_dims[0]:
             xmax = self._image_dims[0]
-            screen_xmax = len(np.arange(xmin,xmax,self.xscale))
+            screen_xmax = screen_xmin + len(np.arange(xmin,xmax,self.xscale))
         if ymax>self._image_dims[1]:
             ymax = self._image_dims[1]
-            screen_ymax = len(np.arange(ymin,ymax,self.yscale))
+            screen_ymax = screen_ymin + len(np.arange(ymin,ymax,self.yscale))
         if zmax>self._image_dims[2]:
             zmax = self._image_dims[2]
-            screen_zmax = len(np.arange(zmin,zmax,self.zscale))
+            screen_zmax = screen_zmin + len(np.arange(zmin,zmax,self.zscale))
 
         screen[screen_xmin:screen_xmax, screen_ymin:screen_ymax, screen_zmin:screen_zmax] = self._image.data[xmin:xmax:self.xscale, ymin:ymax:self.yscale, zmin:zmax:self.zscale]
 
