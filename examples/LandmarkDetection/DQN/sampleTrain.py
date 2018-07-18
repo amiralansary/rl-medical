@@ -226,15 +226,19 @@ class filesListBrainMRLandmark(files):
         Attributes:
         directory: input data directo
     """
-    def __init__(self, directory=None, files_list=None):
+    def __init__(self, directory=None, files_list=None, returnLandmarks=True):
 
         assert directory, 'There is no directory containing training files given'
         assert files_list, 'There is no directory containing files list'
 
         self.dir = directory
+        self.returnLandmarks = returnLandmarks
         self.files_list = [line.split('\n')[0] for line in open(files_list)]
-        self.images_3d_list = self._listImages('/Normalized_MNI/')
-        self.landmarks_list = self._listLandmarks('/LandmarksMAN/VoxelCoordinates/')
+        # self.images_3d_list = self._listImages('/Normalized_MNI/')
+        # self.landmarks_list = self._listLandmarks('/LandmarksMAN/VoxelCoordinates/')
+        self.images_3d_list = self._listImages('/images/')
+        if self.returnLandmarks:
+            self.landmarks_list = self._listLandmarks('/landmarks/')
 
 
     @property
@@ -260,7 +264,7 @@ class filesListBrainMRLandmark(files):
             file_path = os.path.join(current_dir, filename)
             points = getLandmarksFromTXTFile(file_path)
             # landmark point 13 ac - 14 pc
-            landmark = np.round(points[13]).astype('int')
+            landmark = np.round(points[14]).astype('int')
             landmarks.append(landmark)
         return landmarks
 
@@ -285,7 +289,10 @@ class filesListBrainMRLandmark(files):
         while True:
             for idx in indexes:
                 sitk_image, image = NiftiImage().decode(self.images_3d_list[idx])
-                landmark = self.landmarks_list[idx]
+                if self.returnLandmarks:
+                    landmark = self.landmarks_list[idx]
+                else:
+                    landmark = None
                 image_filename = self.images_3d_list[idx][:-7]
                 yield image, landmark, image_filename, sitk_image.GetSpacing()
 
