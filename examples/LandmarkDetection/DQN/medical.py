@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: brain_env.py
+# File: medical.py
 # Author: Amir Alansary <amiralansary@gmail.com>
 
 import csv
@@ -45,8 +45,6 @@ from tensorpack.utils.stats import StatCounter
 
 from IPython.core.debugger import set_trace
 from sampleTrain import *
-
-__all__ = ['MedicalPlayer', 'FrameStack']
 
 _ALE_LOCK = threading.Lock()
 
@@ -715,26 +713,6 @@ class MedicalPlayer(gym.Env):
                             '-vcodec', 'libx264', '-b:v', '2567k', self.filename + '.mp4']
                 subprocess.check_output(save_cmd)
                 shutil.rmtree(dirname, ignore_errors=True)
-
-
-# class DiscreteActionSpace(object):
-#
-#     def __init__(self, num):
-#         super(DiscreteActionSpace, self).__init__()
-#         self.num = num
-#         self.rng = get_rng(self)
-#
-#     def sample(self):
-#         return self.rng.randint(self.num)
-#
-#     def num_actions(self):
-#         return self.num
-#
-#     def __repr__(self):
-#         return "DiscreteActionSpace({})".format(self.num)
-#
-#     def __str__(self):
-#         return "DiscreteActionSpace({})".format(self.num)
 
 
 # =============================================================================
