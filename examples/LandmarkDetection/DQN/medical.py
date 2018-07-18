@@ -169,7 +169,7 @@ class MedicalPlayer(gym.Env):
         # reset buffer, terminal, counters, and init new_random_game
         self._restart_episode()
 
-    def _reset(self):
+    def reset(self):
         # with _ALE_LOCK:
         self._restart_episode()
         return self._current_state()
