@@ -35,10 +35,10 @@ from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
 
 LeakyRelu = tf.nn.leaky_relu
 ###############################################################################
-# import your data here
-data_dir = 'data_dir'
-train_list = 'list_of_train_filenames.txt'
-test_list = 'list_of_test_filenames.txt'
+data_dir = './data/'
+train_list = './data/filenames/test_files.txt' # list of train filenames
+test_list = './data/filenames/test_files.txt' # list of test filenames
+eval_list = './data/filenames/test_files.txt' # list of validation filenames
 
 logger_dir = os.path.join('train_log', 'expriment_1')
 
@@ -68,12 +68,12 @@ EVAL_EPISODE = 50
 ###############################################################################
 
 def get_player(directory=None, files_list= None, viz=False,
-               train=False, saveGif=False, saveVideo=False):
+               task=False, saveGif=False, saveVideo=False):
     # in atari paper, max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
                         viz=viz, saveGif=saveGif, saveVideo=saveVideo,
-                        train=train, files_list=files_list, max_num_frames=1500)
-    if not train:
+                        task=task, files_list=files_list, max_num_frames=1500)
+    if (task != 'train'):
         # in training, env will be decorated by ExpReplay, and history
         # is taken care of in expreplay buffer
         # otherwise, FrameStack modifies self.step to save observations into a queue
@@ -93,8 +93,7 @@ class Model(DQNModel):
         # normalize image values to [0, 1]
         image = image / 255.0
 
-        with argscope(Conv3D, nl=PReLU.symbolic_function, use_bias=True), \
-                argscope(LeakyReLU, alpha=0.01):
+        with argscope(Conv3D, nl=PReLU.symbolic_function, use_bias=True):
             # core layers of the network
             conv = (LinearWrap(image)
                  .Conv3D('conv0', out_channel=32,
@@ -143,7 +142,7 @@ def get_config():
     """This is only used during training."""
     expreplay = ExpReplay(
         predictor_io_names=(['state'], ['Qvalue']),
-        player=get_player(directory=data_dir, train=True,
+        player=get_player(directory=data_dir, task='train',
                           files_list=train_list),
         state_shape=IMAGE_SIZE,
         batch_size=BATCH_SIZE,
@@ -215,7 +214,7 @@ if __name__ == '__main__':
                                 files_list=test_list,
                                 screen_dims=IMAGE_SIZE)
     NUM_ACTIONS = init_player.action_space.n
-    num_validation_files = init_player.files.num_files
+    num_files = init_player.files.num_files
 
     if args.task != 'train':
         assert args.load is not None
@@ -229,12 +228,18 @@ if __name__ == '__main__':
             play_n_episodes(get_player(directory=data_dir,
                                        files_list=test_list, viz=0.01,
                                        saveGif=args.saveGif,
-                                       saveVideo=args.saveVideo),
-                            pred, num_validation_files)
+                                       saveVideo=args.saveVideo,
+                                       task='play'),
+                            pred, num_files)
         # run episodes in parallel and evaluate pretrained model
         elif args.task == 'eval':
-            eval_model_multithread(pred, EVAL_EPISODE, get_player)
-    else:  # train a model
+            play_n_episodes(get_player(directory=data_dir,
+                                       files_list=eval_list, viz=0.01,
+                                       saveGif=args.saveGif,
+                                       saveVideo=args.saveVideo,
+                                       task='eval'),
+                            pred, num_files)
+    else:  # train model
         logger.set_logger_dir(logger_dir)
         config = get_config()
         if args.load:  # resume training from a saved checkpoint
