@@ -97,7 +97,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
         def run(self):
             with self.default_sess():
                 player = get_player_fn(directory=directory,
-                                       train=False,
+                                       task=False,
                                        files_list=files_list)
                 while not self.stopped():
                     try:
