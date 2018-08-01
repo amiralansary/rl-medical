@@ -48,6 +48,7 @@ BATCH_SIZE = 48
 # BREAKOUT (84,84) - MEDICAL 2D (60,60) - MEDICAL 3D (26,26,26)
 IMAGE_SIZE = (45, 45, 45)
 # how many frames to keep
+# in other words, how many observations the network can see
 FRAME_HISTORY = 4
 # the frequency of updating the target network
 UPDATE_FREQ = 4
@@ -59,19 +60,23 @@ MEMORY_SIZE = 1e5#6
 INIT_MEMORY_SIZE = MEMORY_SIZE // 20 #5e4
 # each epoch is 100k played frames
 STEPS_PER_EPOCH = 10000 // UPDATE_FREQ * 10
-# Evaluation episode
+# num training epochs in between model evaluations
+EPOCHS_PER_EVAL = 2
+# the number of episodes to run during evaluation
 EVAL_EPISODE = 50
 
 ###############################################################################
 
 def get_player(directory=None, files_list= None, viz=False,
                task=False, saveGif=False, saveVideo=False):
-    # atari max_num_frames = 30000
+    # in atari paper, max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
                         viz=viz, saveGif=saveGif, saveVideo=saveVideo,
                         task=task, files_list=files_list, max_num_frames=1500)
     if (task != 'train'):
-        # in training, history is taken care of in expreplay buffer
+        # in training, env will be decorated by ExpReplay, and history
+        # is taken care of in expreplay buffer
+        # otherwise, FrameStack modifies self.step to save observations into a queue
         env = FrameStack(env, FRAME_HISTORY)
     return env
 
@@ -82,10 +87,14 @@ class Model(DQNModel):
         super(Model, self).__init__(IMAGE_SIZE, FRAME_HISTORY, METHOD, NUM_ACTIONS, GAMMA)
 
     def _get_DQN_prediction(self, image):
-        """ image: [0,255]"""
+        """ image: [0,255]
+
+        :returns predicted Q values"""
+        # normalize image values to [0, 1]
         image = image / 255.0
 
         with argscope(Conv3D, nl=PReLU.symbolic_function, use_bias=True):
+            # core layers of the network
             conv = (LinearWrap(image)
                  .Conv3D('conv0', out_channel=32,
                          kernel_shape=[5,5,5], stride=[1,1,1])
@@ -108,7 +117,7 @@ class Model(DQNModel):
                  .FullyConnected('fc2', 128).tf.nn.leaky_relu(alpha=0.01)())
             Q = FullyConnected('fct', lq, self.num_actions, nl=tf.identity)
         else:
-            # Dueling DQN
+            # Dueling DQN or Double Dueling
             # state value function
             lv = (conv
                  .FullyConnected('fc0V', 512).tf.nn.leaky_relu(alpha=0.01)
@@ -130,6 +139,7 @@ class Model(DQNModel):
 ###############################################################################
 
 def get_config():
+    """This is only used during training."""
     expreplay = ExpReplay(
         predictor_io_names=(['state'], ['Qvalue']),
         player=get_player(directory=data_dir, task='train',
@@ -165,7 +175,7 @@ def get_config():
                 Evaluator(nr_eval=EVAL_EPISODE, input_names=['state'],
                           output_names=['Qvalue'], directory=data_dir,
                           files_list=test_list, get_player_fn=get_player),
-                every_k_epochs=2),
+                every_k_epochs=EPOCHS_PER_EVAL),
             HumanHyperParamSetter('learning_rate'),
         ],
         steps_per_epoch=STEPS_PER_EPOCH,
@@ -184,7 +194,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.')
     parser.add_argument('--load', help='load model')
-    parser.add_argument('--task', help='task to perform',
+    parser.add_argument('--task', help='task to perform. Must load a pretrained model if task is "play" or "eval"',
                         choices=['play', 'eval', 'train'], default='train')
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling','DuelingDouble'],
@@ -199,7 +209,7 @@ if __name__ == '__main__':
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     METHOD = args.algo
-    # set num_actions
+    # load files into env to set num_actions, num_validation_files
     init_player = MedicalPlayer(directory=data_dir,
                                 files_list=test_list,
                                 screen_dims=IMAGE_SIZE)
@@ -213,6 +223,7 @@ if __name__ == '__main__':
             session_init=get_model_loader(args.load),
             input_names=['state'],
             output_names=['Qvalue']))
+        # demo pretrained model one episode at a time
         if args.task == 'play':
             play_n_episodes(get_player(directory=data_dir,
                                        files_list=test_list, viz=0.01,
@@ -220,6 +231,7 @@ if __name__ == '__main__':
                                        saveVideo=args.saveVideo,
                                        task='play'),
                             pred, num_files)
+        # run episodes in parallel and evaluate pretrained model
         elif args.task == 'eval':
             play_n_episodes(get_player(directory=data_dir,
                                        files_list=eval_list, viz=0.01,
@@ -227,9 +239,9 @@ if __name__ == '__main__':
                                        saveVideo=args.saveVideo,
                                        task='eval'),
                             pred, num_files)
-    else:
+    else:  # train model
         logger.set_logger_dir(logger_dir)
         config = get_config()
-        if args.load:
+        if args.load:  # resume training from a saved checkpoint
             config.session_init = get_model_loader(args.load)
         launch_train_with_config(config, SimpleTrainer())
