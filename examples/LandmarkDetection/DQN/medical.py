@@ -44,7 +44,7 @@ from tensorpack.utils.utils import get_rng
 from tensorpack.utils.stats import StatCounter
 
 from IPython.core.debugger import set_trace
-from sampleTrain import *
+from dataReader import *
 
 _ALE_LOCK = threading.Lock()
 
@@ -153,11 +153,11 @@ class MedicalPlayer(gym.Env):
         # initialize rectangle limits from input image coordinates
         self.rectangle = Rectangle(0, 0, 0, 0, 0, 0)
         # add your data loader here
-        if self.task== 'play':
-            self.files = filesListBrainMRLandmark(directory,files_list,
+        if self.task == 'play':
+            self.files = filesListBrainMRLandmark(files_list,
                                                   returnLandmarks=False)
         else:
-            self.files = filesListBrainMRLandmark(directory,files_list,
+            self.files = filesListBrainMRLandmark(files_list,
                                                   returnLandmarks=True)
 
         # self.files = filesListFetalUSLandmark(directory,files_list)
@@ -437,8 +437,8 @@ class MedicalPlayer(gym.Env):
         distance_error = self.cur_dist
         self.current_episode_score.feed(self.reward)
 
-        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal, 'distError': distance_error,
-                'filename': self.filename}
+        info = {'score': self.current_episode_score.sum, 'gameOver': self.terminal,
+                'distError': distance_error, 'filename': self.filename}
 
         # #######################################################################
         # ## generate evaluation results from 19 different points

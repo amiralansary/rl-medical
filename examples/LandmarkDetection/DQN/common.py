@@ -73,8 +73,7 @@ def play_n_episodes(player, predfunc, nr, render=False):
 
 ###############################################################################
 
-def eval_with_funcs(predictors, nr_eval, get_player_fn,
-                    directory=None, files_list=None):
+def eval_with_funcs(predictors, nr_eval, get_player_fn, files_list=None):
     """
     Args:
         predictors ([PredictorBase])
@@ -96,8 +95,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
 
         def run(self):
             with self.default_sess():
-                player = get_player_fn(directory=directory,
-                                       task=False,
+                player = get_player_fn(task=False,
                                        files_list=files_list)
                 while not self.stopped():
                     try:
@@ -147,7 +145,7 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn,
 
 ###############################################################################
 
-def eval_model_multithread(pred, nr_eval, get_player_fn, directory, files_list):
+def eval_model_multithread(pred, nr_eval, get_player_fn, files_list):
     """
     Args:
         pred (OfflinePredictor): state -> Qvalue
@@ -157,8 +155,7 @@ def eval_model_multithread(pred, nr_eval, get_player_fn, directory, files_list):
     NR_PROC = min(multiprocessing.cpu_count() // 2, 8)
     with pred.sess.as_default():
         mean_score, max_score, mean_dist, max_dist = eval_with_funcs(
-            [pred] * NR_PROC, nr_eval, get_player_fn,
-            directory, files_list)
+            [pred] * NR_PROC, nr_eval, get_player_fn, files_list)
     logger.info("Average Score: {}; Max Score: {}; Average Distance: {}; Max Distance: {}".format(mean_score, max_score, mean_dist, max_dist))
 
 ###############################################################################
@@ -166,8 +163,7 @@ def eval_model_multithread(pred, nr_eval, get_player_fn, directory, files_list):
 class Evaluator(Callback):
 
     def __init__(self, nr_eval, input_names, output_names,
-                 directory, get_player_fn, files_list=None):
-        self.directory = directory
+                 get_player_fn, files_list=None):
         self.files_list = files_list
         self.eval_episode = nr_eval
         self.input_names = input_names
@@ -183,8 +179,7 @@ class Evaluator(Callback):
         """triggered by Trainer"""
         t = time.time()
         mean_score, max_score, mean_dist, max_dist = eval_with_funcs(
-            self.pred_funcs, self.eval_episode, self.get_player_fn,
-            self.directory, self.files_list)
+            self.pred_funcs, self.eval_episode, self.get_player_fn, self.files_list)
         t = time.time() - t
         if t > 10 * 60:  # eval takes too long
             self.eval_episode = int(self.eval_episode * 0.94)

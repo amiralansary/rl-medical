@@ -33,14 +33,6 @@ from tensorpack import (PredictConfig, OfflinePredictor, get_model_loader,
                         FullyConnected, PReLU, SimpleTrainer,
                         launch_train_with_config)
 
-LeakyRelu = tf.nn.leaky_relu
-###############################################################################
-data_dir = './data/'
-train_list = './data/filenames/test_files.txt' # list of train filenames
-test_list = './data/filenames/test_files.txt' # list of test filenames
-eval_list = './data/filenames/test_files.txt' # list of validation filenames
-
-logger_dir = os.path.join('train_log', 'expriment_1')
 
 ###############################################################################
 # BATCH SIZE USED IN NATURE PAPER IS 32 - MEDICAL IS 256
@@ -68,7 +60,7 @@ EVAL_EPISODE = 50
 ###############################################################################
 
 def get_player(directory=None, files_list= None, viz=False,
-               task=False, saveGif=False, saveVideo=False):
+               task='play', saveGif=False, saveVideo=False):
     # in atari paper, max_num_frames = 30000
     env = MedicalPlayer(directory=directory, screen_dims=IMAGE_SIZE,
                         viz=viz, saveGif=saveGif, saveVideo=saveVideo,
@@ -138,12 +130,11 @@ class Model(DQNModel):
 
 ###############################################################################
 
-def get_config():
+def get_config(files_list):
     """This is only used during training."""
     expreplay = ExpReplay(
         predictor_io_names=(['state'], ['Qvalue']),
-        player=get_player(directory=data_dir, task='train',
-                          files_list=train_list),
+        player=get_player(task='train', files_list=files_list),
         state_shape=IMAGE_SIZE,
         batch_size=BATCH_SIZE,
         memory_size=MEMORY_SIZE,
@@ -173,8 +164,8 @@ def get_config():
                 interp='linear'),
             PeriodicTrigger(
                 Evaluator(nr_eval=EVAL_EPISODE, input_names=['state'],
-                          output_names=['Qvalue'], directory=data_dir,
-                          files_list=test_list, get_player_fn=get_player),
+                          output_names=['Qvalue'], files_list=files_list,
+                          get_player_fn=get_player),
                 every_k_epochs=EPOCHS_PER_EVAL),
             HumanHyperParamSetter('learning_rate'),
         ],
@@ -199,20 +190,39 @@ if __name__ == '__main__':
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling','DuelingDouble'],
                         default='DQN')
+    parser.add_argument('--files', type=argparse.FileType('r'), nargs='+',
+                        help="""Filepath to the text file that comtains list of images.
+                                Each line of this file is a full path to an image scan.
+                                For (task == train or eval) there should be two input files ['images', 'landmarks']""")
     parser.add_argument('--saveGif', help='save gif image of the game',
                         action='store_true', default=False)
     parser.add_argument('--saveVideo', help='save video of the game',
                         action='store_true', default=False)
+    parser.add_argument('--logDir', help='store logs in this directory during training',
+                        default='train_log')
+    parser.add_argument('--name', help='name of current experiment for logs',
+                        default='experiment_1')
+
+
     args = parser.parse_args()
 
     if args.gpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
+    # check input files
+    if args.task == 'play':
+        error_message = """Wrong input files {} for {} task - should be 1 \'images.txt\' """.format(len(args.files), args.task)
+        assert len(args.files) == 1
+    else:
+        error_message = """Wrong input files {} for {} task - should be 2 [\'images.txt\', \'landmarks.txt\'] """.format(len(args.files), args.task)
+        assert len(args.files) == 2, (error_message)
+
+
     METHOD = args.algo
     # load files into env to set num_actions, num_validation_files
-    init_player = MedicalPlayer(directory=data_dir,
-                                files_list=test_list,
-                                screen_dims=IMAGE_SIZE)
+    init_player = MedicalPlayer(files_list=args.files,
+                                screen_dims=IMAGE_SIZE,
+                                task='play')
     NUM_ACTIONS = init_player.action_space.n
     num_files = init_player.files.num_files
 
@@ -225,23 +235,22 @@ if __name__ == '__main__':
             output_names=['Qvalue']))
         # demo pretrained model one episode at a time
         if args.task == 'play':
-            play_n_episodes(get_player(directory=data_dir,
-                                       files_list=test_list, viz=0.01,
+            play_n_episodes(get_player(files_list=args.files, viz=0.01,
                                        saveGif=args.saveGif,
                                        saveVideo=args.saveVideo,
                                        task='play'),
                             pred, num_files)
         # run episodes in parallel and evaluate pretrained model
         elif args.task == 'eval':
-            play_n_episodes(get_player(directory=data_dir,
-                                       files_list=eval_list, viz=0.01,
+            play_n_episodes(get_player(files_list=args.files, viz=0.01,
                                        saveGif=args.saveGif,
                                        saveVideo=args.saveVideo,
                                        task='eval'),
                             pred, num_files)
     else:  # train model
+        logger_dir = os.path.join(args.logDir, args.name)
         logger.set_logger_dir(logger_dir)
-        config = get_config()
+        config = get_config(args.files)
         if args.load:  # resume training from a saved checkpoint
             config.session_init = get_model_loader(args.load)
         launch_train_with_config(config, SimpleTrainer())
