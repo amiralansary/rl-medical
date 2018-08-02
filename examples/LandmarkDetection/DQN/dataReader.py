@@ -11,79 +11,13 @@ import SimpleITK as sitk
 from tensorpack import logger
 from IPython.core.debugger import set_trace
 
-
 __all__ = ['filesListBrainMRLandmark','NiftiImage']
 
-
-#######################################################################
-## extract points from xml file
-import xml.etree.ElementTree as ET
-
-def extractPointsXML(filename):
-
-    tree = ET.parse(filename)
-    root = tree.getroot()
-
-    x = []
-    y = []
-    z = []
-
-    for point in root[1].findall('time_series/point'):
-        x.append(float(point[2].text))
-        y.append(float(point[3].text))
-        z.append(float(point[4].text))
-
-    return x,y,z
-
-#######################################################################
-## extract points from txt file
-def extractPointsTXT(filename):
-    x = []
-    y = []
-    z = []
-    with open(filename) as f:
-        for line in f:
-            point = line.split()
-            x.append(float(point[0]))
-            y.append(float(point[1]))
-            z.append(float(point[2]))
-
-    return x,y,z
-
-#######################################################################
-## extract points from vtk file
-def getLandmarksFromVTKFile(file):
-    ''' 0-2 RV insert points
-        1 -> RV lateral wall turning point
-        3 -> LV lateral wall mid-point
-        4 -> apex
-        5-> center of the mitral valve
-    '''
-    with open(file) as fp:
-        landmarks = []
-        for i, line in enumerate(fp):
-            if i == 5:
-                landmarks.append([float(k) for k in line.split()])
-            elif i == 6:
-                landmarks.append([float(k) for k in line.split()])
-            elif i > 6:
-                landmarks = np.asarray(landmarks).reshape((-1,3))
-                landmarks[:,[0, 1]] = -landmarks[:,[0, 1]]
-                return landmarks
-
-#######################################################################
+######################################################################
 ## extract points from txt file
 def getLandmarksFromTXTFile(file):
-    ''' 1->3 Splenium of corpus callosum
-            (outer aspect, inferior tip and inner aspect (1,2,3)),
-        4,5 Genu of corpus callosum (outer and inner aspect (4,5)),
-        6,7 Superior and inferior aspect of pons (6,7),
-        8,16 Superior and inferior aspect cerebellum (8,16),
-        9 Fourth ventricle (9),
-        10->13 Putamen posterior and anterior (10,11)(left), (12,13)(right),
-        14,15 Anterior and posterior commissure (14,15),
-        17,18 Anterior tip of lateral ventricle (left and right) (17,18),
-        19,20 Inferior tip of lateral ventricle (left and right) (19,20)
+    '''
+    Extract each landmark point line by line and return vector continaing all landmarks.
     '''
     with open(file) as fp:
         landmarks = []
