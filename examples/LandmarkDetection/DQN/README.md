@@ -30,6 +30,32 @@ Here are few examples of the learned agent for landmark detection on unseen data
 ---
 
 ## Usage
+```
+usage: DQN.py [-h] [--gpu GPU] [--load LOAD] [--task {play,eval,train}]
+              [--algo {DQN,Double,Dueling,DuelingDouble}]
+              [--files FILES [FILES ...]] [--saveGif] [--saveVideo]
+              [--logDir LOGDIR] [--name NAME]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --gpu GPU             comma separated list of GPU(s) to use.
+  --load LOAD           load model
+  --task {play,eval,train}
+                        task to perform. Must load a pretrained model if task
+                        is "play" or "eval"
+  --algo {DQN,Double,Dueling,DuelingDouble}
+                        algorithm
+  --files FILES [FILES ...]
+                        Filepath to the text file that comtains list of
+                        images. Each line of this file is a full path to an
+                        image scan. For (task == train or eval) there should
+                        be two input files ['images', 'landmarks']
+  --saveGif             save gif image of the game
+  --saveVideo           save video of the game
+  --logDir LOGDIR       store logs in this directory during training
+  --name NAME           name of current experiment for logs
+
+```
 
 ### Train
 ```
