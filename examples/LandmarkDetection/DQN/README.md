@@ -33,7 +33,7 @@ Here are few examples of the learned agent for landmark detection on unseen data
 
 ### Train
 ```
- python DQN.py --task train --algo DQN --gpu 1 --files './data/filenames/image_files.txt' './data/filenames/landmark_files.txt'
+ python DQN.py --task train --algo DQN --gpu 0 --files './data/filenames/image_files.txt' './data/filenames/landmark_files.txt'
 ```
 
 ### Evaluate
