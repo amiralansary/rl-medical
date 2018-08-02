@@ -33,12 +33,17 @@ Here are few examples of the learned agent for landmark detection on unseen data
 
 ### Train
 ```
-python DQN.py --task train --algo DQN --gpu 0
+ python DQN.py --task train --algo DQN --gpu 1 --files './data/filenames/image_files.txt' './data/filenames/landmark_files.txt'
+```
+
+### Evaluate
+```
+python DQN.py --task eval --algo DQN --gpu 0 --load data/models/DQN_multiscale_brain_mri_point_pc_ROI_45_45_45/model-600000 --files './data/filenames/image_files.txt' './data/filenames/landmark_files.txt'
 ```
 
 ### Test
 ```
-python DQN.py --task play --algo DQN --gpu 0 --load data/models/DQN_multiscale_brain_mri_point_pc_ROI_45_45_45/model-600000
+python DQN.py --task play --algo DQN --gpu 0 --load data/models/DQN_multiscale_brain_mri_point_pc_ROI_45_45_45/model-600000 --files './data/filenames/image_files.txt'
 ```
 
 ## Citation
