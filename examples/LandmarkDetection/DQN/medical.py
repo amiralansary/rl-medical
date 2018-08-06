@@ -160,8 +160,6 @@ class MedicalPlayer(gym.Env):
             self.files = filesListBrainMRLandmark(files_list,
                                                   returnLandmarks=True)
 
-        # self.files = filesListFetalUSLandmark(directory,files_list)
-        # self.files = filesListCardioMRLandmark(directory,files_list)
 
         # prepare file sampler
         self.filepath = None

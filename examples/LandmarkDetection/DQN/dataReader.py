@@ -40,27 +40,17 @@ class filesListBrainMRLandmark(object):
         # check if files_list exists
         assert files_list, 'There is no directory containing files list'
         # read image filenames
-        self.images_list = [line.split('\n')[0] for line in open(files_list[0].name)]
+        self.image_files = [line.split('\n')[0] for line in open(files_list[0].name)]
         # read landmark filenames if task is train or eval
         self.returnLandmarks = returnLandmarks
         if self.returnLandmarks:
-            self.landmarks_list = self. _listLandmarks([line.split('\n')[0] for line in open(files_list[1].name)])
-            assert len(self.images_list)== len(self.landmarks_list), 'number of image files is not equal to number of landmark files'
+            self.landmark_files = [line.split('\n')[0] for line in open(files_list[1].name)]
+            assert len(self.image_files)== len(self.landmark_files), 'number of image files is not equal to number of landmark files'
 
 
     @property
     def num_files(self):
-        return len(self.images_list)
-
-    # _listLandmarks should be removed and replaced with one landmark per file
-    def _listLandmarks(self, landmark_files):
-        landmarks = []
-        for filename in landmark_files:
-            points = getLandmarksFromTXTFile(filename)
-            # landmark point 13 ac - 14 pc
-            landmark = np.round(points[14]).astype('int')
-            landmarks.append(landmark)
-        return landmarks
+        return len(self.image_files)
 
     def sample_circular(self,shuffle=False):
         """ return a random sampled ImageRecord from the list of files
@@ -72,13 +62,19 @@ class filesListBrainMRLandmark(object):
 
         while True:
             for idx in indexes:
-                sitk_image, image = NiftiImage().decode(self.images_list[idx])
+                sitk_image, image = NiftiImage().decode(self.image_files[idx])
                 if self.returnLandmarks:
-                    landmark = self.landmarks_list[idx]
+                    ## transform landmarks to image space if they are in physical space
+                    landmark_file = self.landmark_files[idx]
+                    all_landmarks = getLandmarksFromTXTFile(landmark_file)
+                    landmark = all_landmarks[14] # landmark index is 13 for ac-point and 14 pc-point
+                    # transform landmark from physical to image space if required
+                    # landmark = sitk_image.TransformPhysicalPointToContinuousIndex(landmark)
+                    landmark = np.round(landmark).astype('int')
                 else:
                     landmark = None
                 # extract filename from path
-                image_filename = self.images_list[idx][:-7]
+                image_filename = self.image_files[idx][:-7]
                 yield image, landmark, image_filename, sitk_image.GetSpacing()
 
 ###############################################################################
