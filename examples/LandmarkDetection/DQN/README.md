@@ -79,7 +79,9 @@ If you use this code in your research, please cite this paper:
 ```
 @article{alansary2019evaluating,
   title={{Evaluating Reinforcement Learning Agents for Anatomical Landmark Detection}},
-  author={Alansary, Amir and Oktay, Ozan and Li, Yuanwei and Le Folgoc, Loic and Hou, Benjamin and Vaillant, Ghislain and Kamnitsas, Konstantinos and Vlontzos, Athanasios and Glocker, Ben and Kainz, Bernhard and others},
+  author={Alansary, Amir and Oktay, Ozan and Li, Yuanwei and Le Folgoc, Loic and 
+          Hou, Benjamin and Vaillant, Ghislain and Kamnitsas, Konstantinos and 
+          Vlontzos, Athanasios and Glocker, Ben and Kainz, Bernhard and others},
   journal={Medical Image Analysis},
   year={2019},
   publisher={Elsevier}
