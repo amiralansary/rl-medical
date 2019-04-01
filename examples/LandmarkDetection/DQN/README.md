@@ -1,6 +1,6 @@
-# Anatomical Landmark Detection
+# Multiple Anatomical Landmark Detection using Multi-agent RL
 
-Automatic detection of anatomical landmarks is an important step for a wide range of applications in medical image analysis. In this project, we formulate the landmark detection problem as a sequential decision process navigating in a medical image environment towards the target landmark. We deploy multiple Deep Q-Network (DQN) based architectures to train agents that can learn to identify the optimal path to the point of interest. This code also supports both fixed- and multi-scale search strategies with hierarchical action steps in a coarse-to-fine manner.
+Automatic detection of anatomical landmarks is an important step for a wide range of applications in medical image analysis. The location of anatomical landmarks is interdependent and non-random in a human anatomy, hence locating one is able to help locate others. In this project, we formulate the landmark detection problem as a cocurrent partially observable markov decision process (POMDP) navigating in a medical image environment towards the target landmarks. We create a collaborative Deep Q-Network (DQN) based architecture where we share the convolutional layers amongst agents, sharing thus implicitly knowledge. This code also supports both fixed- and multi-scale search strategies with hierarchical action steps in a coarse-to-fine manner.
 
 <p align="center">
 <img style="float: center;" src="images/framework.png" width="465">
@@ -11,19 +11,15 @@ Automatic detection of anatomical landmarks is an important step for a wide rang
 ## Results
 Here are few examples of the learned agent for landmark detection on unseen data:
 
-* Detecting the apex point in short-axis cardiac MRI [(HQ video)](videos/cardiac_apex.mp4)
-<p align="center">
-<img src="./images/cardiac_apex.gif" width="255">
-</p>
+* Detecting the apex point and center of mitral valve in short-axis cardiac MRI 
 
-* Detecting the anterior commissure (AC) point in adult brain MRI [(HQ video)](videos/brain_ac.mp4)
-<p align="center">
-<img src="./images/brain_ac.gif" width="255">
-</p>
 
-* Detecting the cavum septum pellucidum (CSP) point in fetal head ultrasound [(HQ video)](videos/fetal_csp.mp4)
+* Detecting the anterior commissure (AC) and posterior commissure point in adult brain MRI 
+
+* Detecting the left and right cerrebellum point in fetal head ultrasound 
+
 <p align="center">
-<img src="./images/fetal_csp.gif" width="255">
+<img src="./images/marl.gif" width="255">
 </p>
 
 
@@ -54,7 +50,7 @@ optional arguments:
   --saveVideo           save video of the game
   --logDir LOGDIR       store logs in this directory during training
   --name NAME           name of current experiment for logs
-
+  --agents AGENTS       number of agents to be trained simulteniously 
 ```
 
 ### Train
@@ -72,18 +68,8 @@ python DQN.py --task eval --algo DQN --gpu 0 --load data/models/DQN_multiscale_b
 python DQN.py --task play --algo DQN --gpu 0 --load data/models/DQN_multiscale_brain_mri_point_pc_ROI_45_45_45/model-600000 --files './data/filenames/image_files.txt'
 ```
 
-## Citation
+### Citation 
+To cite this work use the below bibtex item.
 
-If you use this code in your research, please cite this paper:
 
-```
-@article{alansary2018evaluating,
-    title={{Evaluating Reinforcement Learning Agents for Anatomical
-      Landmark Detection}},
-    author={Alansary, Amir and Oktay, Ozan and Yuanwei, Li and
-      Le Folgoc, Loic and Hou, Benjamin and Vaillant, Ghislain and
-      Glocker, Ben and Kainz, Bernhard and Rueckert, Daniel},
-    url={https://openreview.net/forum?id=SyQK4-nsz},
-    year={2018}
- }
- ```
+
