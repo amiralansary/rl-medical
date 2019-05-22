@@ -22,9 +22,9 @@ so that it can be used for actual research comparisons.
 
 tensorpack-medical requires:
 
-+ Python >= 3.5
-+ TensorFlow >= 1.6.0
-+ Tensorpack >= 0.8.0
++ Python = 3.5
++ TensorFlow = 1.6.0
++ Tensorpack = 0.8.0
 + Python OpenCV
 + pyglet
 
