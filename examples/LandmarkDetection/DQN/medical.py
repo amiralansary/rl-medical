@@ -616,15 +616,14 @@ class MedicalPlayer(gym.Env):
         # get image and convert it to pyglet
         plane = self.get_plane(current_point[2])  # z-plane
         # plane = np.squeeze(self._current_state()[:,:,13])
-        img = cv2.cvtColor(plane, cv2.COLOR_GRAY2RGB)  # congvert to rgb
         # rescale image
         # INTER_NEAREST, INTER_LINEAR, INTER_AREA, INTER_CUBIC, INTER_LANCZOS4
         scale_x = 1
         scale_y = 1
-        #
-        # img = cv2.resize(img,
-        #                  (int(scale_x*img.shape[1]),int(scale_y*img.shape[0])),
-        #                  interpolation=cv2.INTER_LINEAR)
+        img = cv2.resize(plane,
+                         (int(scale_x*plane.shape[1]),int(scale_y*plane.shape[0])),
+                         interpolation=cv2.INTER_LINEAR)
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)  # congvert to rgb
         # skip if there is a viewer open
         if (not self.viewer) and self.viz:
             from viewer import SimpleImageViewer
@@ -641,8 +640,8 @@ class MedicalPlayer(gym.Env):
                                 pos_y=scale_y * current_point[1],
                                 color=(0.0, 0.0, 1.0, 1.0))
         # draw a box around the agent - what the network sees ROI
-        self.viewer.draw_rect(self.rectangle.xmin, self.rectangle.ymin,
-                              self.rectangle.xmax, self.rectangle.ymax)
+        self.viewer.draw_rect(scale_x*self.rectangle.xmin, scale_y*self.rectangle.ymin,
+                              scale_x*self.rectangle.xmax, scale_y*self.rectangle.ymax)
         self.viewer.display_text('Agent ', color=(204, 204, 0, 255),
                                  x=self.rectangle.xmin - 15,
                                  y=self.rectangle.ymin)
