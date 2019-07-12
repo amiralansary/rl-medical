@@ -29,7 +29,7 @@ class Model2D(ModelDesc):
         self.image_shape = image_shape
         self.num_actions = num_actions
 
-    def _get_inputs(self):
+    def inputs(self):
         # Use a combined state for efficiency.
         # The first h channels are the current state, and the last h channels are the next state.
         return [InputDesc(tf.uint8,
@@ -48,7 +48,7 @@ class Model2D(ModelDesc):
     def get_DQN_prediction(self, image):
         return self._get_DQN_prediction(image)
 
-    def _build_graph(self, inputs):
+    def _build_graph(self, *inputs):
         comb_state, action, reward, isOver = inputs
         comb_state = tf.cast(comb_state, tf.float32)
         state = tf.slice(comb_state, [0, 0, 0, 0], [-1, -1, -1, self.channel], name='state')
@@ -80,13 +80,14 @@ class Model2D(ModelDesc):
 
         target = reward + (1.0 - tf.cast(isOver, tf.float32)) * self.gamma * tf.stop_gradient(best_v)
 
-        self.cost = tf.losses.huber_loss(target, pred_action_value,
-                                         reduction=tf.losses.Reduction.MEAN)
+        cost = tf.losses.huber_loss(target, pred_action_value,
+                                    reduction=tf.losses.Reduction.MEAN)
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))   # monitor all W
-        summary.add_moving_summary(self.cost)
+        summary.add_moving_summary(cost)
+        return cost
 
-    def _get_optimizer(self):
+    def optimizer(self):
         lr = tf.get_variable('learning_rate',initializer=1e-3, trainable=False)
         opt = tf.train.AdamOptimizer(lr, epsilon=1e-3)
         return optimizer.apply_grad_processors(
@@ -105,8 +106,8 @@ class Model2D(ModelDesc):
                 ops.append(v.assign(G.get_tensor_by_name(new_name + ':0')))
         return tf.group(*ops, name='update_target_network')
 
-    
-    
+
+
 class Model3D(ModelDesc):
     def __init__(self, image_shape, channel, method, num_actions, gamma):
         """
@@ -124,7 +125,7 @@ class Model3D(ModelDesc):
         self.image_shape = image_shape
         self.num_actions = num_actions
 
-    def _get_inputs(self):
+    def inputs(self):
         # Use a combined state for efficiency.
         # The first h channels are the current state, and the last h channels are the next state.
         return [InputDesc(tf.uint8,
@@ -144,7 +145,7 @@ class Model3D(ModelDesc):
     def get_DQN_prediction(self, image):
         return self._get_DQN_prediction(image)
 
-    def _build_graph(self, inputs):
+    def _build_graph(self, *inputs):
         comb_state, action, reward, isOver = inputs
         comb_state = tf.cast(comb_state, tf.float32)
         state = tf.slice(comb_state, [0, 0, 0, 0, 0], [-1, -1, -1, -1, self.channel], name='state')
@@ -175,13 +176,14 @@ class Model3D(ModelDesc):
             best_v = tf.reduce_sum(targetQ_predict_value * predict_onehot, 1)
 
         target = reward + (1.0 - tf.cast(isOver, tf.float32)) * self.gamma * tf.stop_gradient(best_v)
-        self.cost = tf.losses.huber_loss(target, pred_action_value,
-                                         reduction=tf.losses.Reduction.MEAN)
+        cost = tf.losses.huber_loss(target, pred_action_value,
+                                    reduction=tf.losses.Reduction.MEAN)
         summary.add_param_summary(('conv.*/W', ['histogram', 'rms']),
                                   ('fc.*/W', ['histogram', 'rms']))  # monitor all W
-        summary.add_moving_summary(self.cost)
+        summary.add_moving_summary(cost)
+        return cost
 
-    def _get_optimizer(self):
+    def optimizer(self):
         lr = tf.get_variable('learning_rate', initializer=1e-3, trainable=False)
         opt = tf.train.AdamOptimizer(lr, epsilon=1e-3)
         return optimizer.apply_grad_processors(

@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: conv3d.py
-# Author: Yuxin Wu <ppwwyyxxc@gmail.com>
-# Modified: Amir Alansary <amiralansary@gmail.com>
+# Author: Amir Alansary <amiralansary@gmail.com>
 
 import tensorflow as tf
 from tensorpack import layer_register, VariableHolder
-from tensorpack.tfutils.common import get_tf_version_number
+from tensorpack.tfutils.common import get_tf_version_tuple
 from .tflayer import rename_get_variable, convert_to_tflayer_args
 
 from tensorpack_medical.utils.argtools import shape3d, shape5d, get_data_format3d
@@ -84,14 +83,14 @@ def Conv3D(
 
         out_channel = filters
         assert out_channel % split == 0
-        assert dilation_rate == (1, 1, 1) or get_tf_version_number() >= 1.5, 'TF>=1.5 required for group dilated conv'
+        assert dilation_rate == (1, 1, 1) or get_tf_version_tuple() >= (1, 5), 'TF>=1.5 required for group dilated conv'
 
         kernel_shape = shape3d(kernel_size)
         filter_shape = kernel_shape + [in_channel / split, out_channel]
         stride = shape5d(strides, data_format=data_format)
 
         kwargs = dict(data_format=data_format)
-        if get_tf_version_number() >= 1.5:
+        if get_tf_version_tuple() >= (1, 5):
             kwargs['dilations'] = shape4d(dilation_rate, data_format=data_format)
 
         W = tf.get_variable(

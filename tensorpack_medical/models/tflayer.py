@@ -8,7 +8,7 @@ import tensorflow as tf
 import six
 import functools
 
-from tensorpack.tfutils.common import get_tf_version_number
+from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.varreplace import custom_getter_scope
 
 from tensorpack_medical.utils.argtools import get_data_format3d
@@ -89,7 +89,7 @@ def rename_get_variable(mapping):
 
 
 def monkeypatch_tf_layers():
-    if get_tf_version_number() < 1.4:
+    if get_tf_version_tuple() < (1, 4):
         if not hasattr(tf.layers, 'Dense'):
             from tensorflow.python.layers.core import Dense
             tf.layers.Dense = Dense

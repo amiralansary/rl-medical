@@ -22,11 +22,13 @@ so that it can be used for actual research comparisons.
 
 tensorpack-medical requires:
 
-+ Python = 3.5
-+ TensorFlow = 1.6.0
-+ Tensorpack = 0.8.0
-+ Python OpenCV
-+ pyglet
++ Python = 3.6
++ [tensorflow-gpu = 1.14.0](https://pypi.org/project/tensorflow-gpu/)
++ [tensorpack](https://github.com/tensorpack/tensorpack)
++ [opencv-python](https://pypi.org/project/opencv-python/)
++ [pillow](https://pypi.org/project/Pillow/)
++ [gym](https://pypi.org/project/gym/)
++ [SimpleITK](https://pypi.org/project/SimpleITK/)
 
 ### User installation
 ```
