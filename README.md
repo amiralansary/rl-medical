@@ -22,9 +22,9 @@ so that it can be used for actual research comparisons.
 
 tensorpack-medical requires:
 
-+ Python = 3.6
-+ [tensorflow-gpu = 1.14.0](https://pypi.org/project/tensorflow-gpu/)
-+ [tensorpack](https://github.com/tensorpack/tensorpack)
++ Python=3.6
++ [tensorflow-gpu=1.14.0](https://pypi.org/project/tensorflow-gpu/)
++ [tensorpack=0.9.5](https://github.com/tensorpack/tensorpack)
 + [opencv-python](https://pypi.org/project/opencv-python/)
 + [pillow](https://pypi.org/project/Pillow/)
 + [gym](https://pypi.org/project/gym/)
