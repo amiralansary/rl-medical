@@ -29,9 +29,7 @@ pip install -U git+https://github.com/amiralansary/rl-medical.git
 
 ## Development
 
-New contributors of any experience level are very welcomed. Reproducing more
-examples from recent published works is very helpful for the reproducibility of
-new research.
+New contributors of any experience level are very welcomed
 
 ### Source code
 You can clone the latest version of the source code with the command::
