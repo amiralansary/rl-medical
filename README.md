@@ -24,7 +24,7 @@ tensorpack-medical requires:
 
 ### User installation
 ```
-pip install -U git+https://github.com/amiralansary/tensorpack-medical.git
+pip install -U git+https://github.com/amiralansary/rl-medical.git
 ```
 
 ## Development
@@ -36,5 +36,5 @@ new research.
 ### Source code
 You can clone the latest version of the source code with the command::
 ```
-git clone https://github.com/amiralansary/tensorpack-medical.git
+https://github.com/amiralansary/rl-medical.git
 ```
