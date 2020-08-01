@@ -4,8 +4,9 @@ Deep Reinforcement Learning (DRL) has proven to achieve state-of-the-art accurac
 
 
 <p align="center">
-<img style="float: center;" src="images/cmarl_arch.png" width="465">
-<img style="float: center;" src="images/environment.png" width="130">
+<img style="float: center;" src="images/cmarl_arch.png">
+<br/>
+<img style="float: center;" src="images/environment.png">
 </p>
 
 ---
@@ -13,7 +14,7 @@ Deep Reinforcement Learning (DRL) has proven to achieve state-of-the-art accurac
 Here is an example of learned agents for landmark detection on unseen data:
 
 <p align="center">
-<img src="./videos/brain_5_agents.gif" width="255">
+<img src="./videos/brain_5_agents.gif">
 </p>
 
 
