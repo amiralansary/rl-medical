@@ -4,7 +4,8 @@ Deep Reinforcement Learning (DRL) agents applied to medical images
 
 ## Examples
 
-- [Landmark detection using different DQN variants](examples/LandmarkDetection/DQN)
+- [Landmark detection using different DQN variants for a single agent implemented using Tensorpack](examples/LandmarkDetection/SingleAgent)
+- [Landmark detection for multiple agents using different communication variants implemented in PyTorch](examples/LandmarkDetection/MultiAgent)
 - [Automatic view planning using different DQN variants](examples/AutomaticViewPlanning/DQN)
 
 
@@ -44,8 +45,8 @@ If you use this code in your research, please cite these paper:
 ```
 @article{alansary2019evaluating,
   title={{Evaluating Reinforcement Learning Agents for Anatomical Landmark Detection}},
-  author={Alansary, Amir and Oktay, Ozan and Li, Yuanwei and Le Folgoc, Loic and 
-          Hou, Benjamin and Vaillant, Ghislain and Kamnitsas, Konstantinos and 
+  author={Alansary, Amir and Oktay, Ozan and Li, Yuanwei and Le Folgoc, Loic and
+          Hou, Benjamin and Vaillant, Ghislain and Kamnitsas, Konstantinos and
           Vlontzos, Athanasios and Glocker, Ben and Kainz, Bernhard and Rueckert, Daniel},
   journal={Medical Image Analysis},
   year={2019},
@@ -54,7 +55,7 @@ If you use this code in your research, please cite these paper:
 
 @inproceedings{alansary2018automatic,
   title={Automatic view planning with multi-scale deep reinforcement learning agents},
-  author={Alansary, Amir and Le Folgoc, Loic and Vaillant, Ghislain and Oktay, Ozan and Li, Yuanwei and 
+  author={Alansary, Amir and Le Folgoc, Loic and Vaillant, Ghislain and Oktay, Ozan and Li, Yuanwei and
   Bai, Wenjia and Passerat-Palmbach, Jonathan and Guerrero, Ricardo and Kamnitsas, Konstantinos and Hou, Benjamin and others},
   booktitle={International Conference on Medical Image Computing and Computer-Assisted Intervention},
   pages={277--285},

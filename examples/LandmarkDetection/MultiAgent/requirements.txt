@@ -1,0 +1,6 @@
+torch>=1.4
+tensorpack>=0.9.5
+numpy
+SimpleITK
+gym
+pillow
