@@ -108,7 +108,16 @@ optional arguments:
 
 ## Citation
 
-If you use this code in your research, please cite this paper:
+If you use this code in your research, please cite these papers:
+
+```
+@article{leroy2020communicative,
+  title={Communicative Reinforcement Learning Agents for Landmark Detection in Brain Images},
+  author={Leroy, Guy and Rueckert, Daniel and Alansary, Amir},
+  journal={arXiv preprint arXiv:2008.08055},
+  year={2020}
+}
+```
 
 ```
 @article{alansary2019evaluating,
