@@ -1,3 +1,7 @@
+# IMPORTANT
+
+This folder is now outdated. Please refer to the repo [gml16/rl-medical](https://github.com/gml16/rl-medical) for multi-agent anatomical landmark detection.
+
 # Anatomical Landmark Detection
 
 Deep Reinforcement Learning (DRL) has proven to achieve state-of-the-art accuracy in medical imaging analysis. DRL methods can be leveraged to automatically find anatomical landmarks in 3D scanned images. Robust and fast landmark localisation is critical in multiple medical imaging analysis applications such as biometric measurements of anatomical structures, registration of 3D volumes and extraction of 2D clinical standard planes. Here, we explore more advanced approaches involving multiple cooperating agents with a focus on their communication in order to improve performances. The increase in accuracy could lead to a general adoption in clinical settings to reduce costs and human errors.  Our results show that the CommNet architecture with communicating agents on a single landmark outperforms previous approaches. We can detect the anterior commissure landmark with an average distance error of 0.75mm. Our implementations also have greater accuracy than expert clinicians on the apex and mitral valve centre.
